@@ -85,6 +85,9 @@
         "selectCount": "选择生成数量",
         "generateCountPrefix": "生成",
         "generateCountSuffix": "张图像",
+        "regenCountPrefix": "重新生成",
+        "regenCountSuffix": "张",
+        "regenCountAriaLabel": "选择重新生成张数",
         "generatedProgress": "已生成 {generated}/{total}",
         "generating": "生成中",
         "regenerating": "重新生成中",
@@ -188,7 +191,8 @@
         "regenerateAll": "重新生成全部",
         "regenerateAllConfirm": "确定要重新生成所有资产的图片吗？这将覆盖现有图片。",
         "noAssetsToGenerate": "没有可生成的资产",
-        "regenerateAllHint": "重新生成所有资产图片（覆盖现有）"
+        "regenerateAllHint": "重新生成所有资产图片（覆盖现有）",
+        "downloadAll": "打包下载全部图片"
     },
     "common": {
         "actions": "操作",
@@ -241,7 +245,9 @@
         "copySuccessCharacter": "角色形象复制成功",
         "copySuccessLocation": "场景图片复制成功",
         "copySuccessVoice": "音色复制成功",
-        "copyFailed": "复制失败: {error}"
+        "copyFailed": "复制失败: {error}",
+        "downloadEmpty": "当前没有可下载的图片资产",
+        "downloadFailed": "打包下载失败"
     },
     "tts": {
         "voiceDesignSaved": "已为 {name} 设置 AI 设计的声音",

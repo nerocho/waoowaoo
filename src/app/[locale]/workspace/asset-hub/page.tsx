@@ -1,6 +1,7 @@
 'use client'
 import { logError as _ulogError } from '@/lib/logging/core'
 import { apiFetch } from '@/lib/api-fetch'
+import JSZip from 'jszip'
 
 import { useState } from 'react'
 import { useTranslations } from 'next-intl'
@@ -75,6 +76,8 @@ export default function AssetHubPage() {
     // 音色库弹窗状态
     const [showAddVoice, setShowAddVoice] = useState(false)
     const [voicePickerCharacterId, setVoicePickerCharacterId] = useState<string | null>(null)
+    const [isDownloading, setIsDownloading] = useState(false)
+
 
     // 编辑角色弹窗状态
     const [characterEditModal, setCharacterEditModal] = useState<{
@@ -340,6 +343,74 @@ export default function AssetHubPage() {
         }
     }
 
+    // 打包下载所有图片资产
+    const handleDownloadAll = async () => {
+        // 收集所有有效图片
+        const imageEntries: Array<{ filename: string; url: string }> = []
+
+        // 角色图片：每个角色每个外貌的当前选中图
+        for (const character of characters) {
+            for (const appearance of character.appearances) {
+                const url = appearance.imageUrl
+                if (!url) continue
+                const safeName = character.name.replace(/[/\\:*?"<>|]/g, '_')
+                const filename = appearance.appearanceIndex === 0
+                    ? `characters/${safeName}.jpg`
+                    : `characters/${safeName}_appearance${appearance.appearanceIndex}.jpg`
+                imageEntries.push({ filename, url })
+            }
+        }
+
+        // 场景图片：每个场景的选中图
+        for (const location of locations) {
+            for (const image of location.images) {
+                const url = image.imageUrl
+                if (!url) continue
+                const safeName = location.name.replace(/[/\\:*?"<>|]/g, '_')
+                const filename = location.images.length <= 1
+                    ? `locations/${safeName}.jpg`
+                    : `locations/${safeName}_${image.imageIndex + 1}.jpg`
+                imageEntries.push({ filename, url })
+            }
+        }
+
+        if (imageEntries.length === 0) {
+            alert(t('downloadEmpty'))
+            return
+        }
+
+        setIsDownloading(true)
+        try {
+            const zip = new JSZip()
+            // 并发 fetch 所有图片
+            await Promise.all(
+                imageEntries.map(async ({ filename, url }) => {
+                    try {
+                        const response = await fetch(url)
+                        if (!response.ok) return
+                        const blob = await response.blob()
+                        zip.file(filename, blob)
+                    } catch {
+                        // 单张图片失败不阻断整个流程
+                    }
+                })
+            )
+            const content = await zip.generateAsync({ type: 'blob' })
+            const link = document.createElement('a')
+            link.href = URL.createObjectURL(content)
+            link.download = `asset-hub_${new Date().toISOString().slice(0, 10)}.zip`
+            document.body.appendChild(link)
+            link.click()
+            document.body.removeChild(link)
+            URL.revokeObjectURL(link.href)
+        } catch (error) {
+            _ulogError('打包下载失败:', error)
+            alert(t('downloadFailed'))
+        } finally {
+            setIsDownloading(false)
+        }
+    }
+
     return (
         <div className="glass-page min-h-screen">
             <Navbar />
@@ -382,6 +453,8 @@ export default function AssetHubPage() {
                         onAddCharacter={() => setShowAddCharacter(true)}
                         onAddLocation={() => setShowAddLocation(true)}
                         onAddVoice={() => setShowAddVoice(true)}
+                        onDownloadAll={handleDownloadAll}
+                        isDownloading={isDownloading}
                         selectedFolderId={selectedFolderId}
                         onImageClick={setPreviewImage}
                         onImageEdit={handleOpenImageEdit}

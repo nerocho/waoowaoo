@@ -20,8 +20,9 @@ export interface GenerateOptions {
 
 export interface GenerateResult {
     success: boolean
-    imageUrl?: string         // 图片 URL
-    imageBase64?: string      // 图片 base64
+    imageUrl?: string         // 图片 URL（单图，向后兼容）
+    imageUrls?: string[]      // 多图 URL 列表（接口返回多张时填充）
+    imageBase64?: string      // 图片 base64（单图，向后兼容）
     videoUrl?: string         // 视频 URL
     audioUrl?: string         // 音频 URL
     error?: string           // 错误信息

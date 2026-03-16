@@ -60,6 +60,32 @@ function isModelNotRegisteredMessage(message: string): boolean {
   ])
 }
 
+/**
+ * MODEL_NOT_CONFIGURED: 用户未配置对应类型的模型
+ * 覆盖形式：model_not_found / model_not_configured / no xxx model is enabled
+ */
+function isModelNotConfiguredMessage(message: string): boolean {
+  return containsAny(message, [
+    'model_not_found',
+    'model_not_configured',
+    'is not enabled for image',
+    'is not enabled for video',
+    'is not enabled for audio',
+    'is not enabled for lipsync',
+    'is not enabled for llm',
+    'no image model is enabled',
+    'no video model is enabled',
+    'no audio model is enabled',
+    'no lipsync model is enabled',
+    'no llm model is enabled',
+    'multiple image models are enabled',
+    'multiple video models are enabled',
+    'multiple audio models are enabled',
+    'multiple lipsync models are enabled',
+    'multiple llm models are enabled',
+  ])
+}
+
 function isEmptyResponseMessage(message: string): boolean {
   return containsAny(message, [
     'channel:empty_response',
@@ -139,10 +165,13 @@ function inferCodeFromMessage(message: string): UnifiedErrorCode | null {
 
   if (isModelNotOpenMessage(message)) return 'MODEL_NOT_OPEN'
   if (isModelNotRegisteredMessage(message)) return 'MODEL_NOT_REGISTERED'
+  if (isModelNotConfiguredMessage(message)) return 'MODEL_NOT_CONFIGURED'
   if (isEmptyResponseMessage(message)) return 'EMPTY_RESPONSE'
   if (isVideoApiFormatUnsupportedMessage(message)) return 'VIDEO_API_FORMAT_UNSUPPORTED'
   if (containsAny(message, ['task cancelled', 'canceled by user', 'cancelled by user', '任务已取消'])) return 'CONFLICT'
   if (containsAny(message, ['unauthorized', 'not authenticated', 'need login', '401'])) return 'UNAUTHORIZED'
+  // AccountOverdueError（ARK 欠费 403）必须在 FORBIDDEN 之前检查
+  if (containsAny(message, ['accountoverdueerror', 'overdue balance', 'overdue', 'account has an overdue'])) return 'INSUFFICIENT_BALANCE'
   if (containsAny(message, ['forbidden', 'permission denied', '403'])) return 'FORBIDDEN'
   if (containsAny(message, ['not found', '不存在', 'missing record'])) return 'NOT_FOUND'
   if (containsAny(message, ['invalid', 'missing', 'required', 'bad request', 'fieldinvalid'])) return 'INVALID_PARAMS'
@@ -225,14 +254,22 @@ export function normalizeAnyError(input: unknown, options: NormalizeOptions = {}
   if (isModelNotRegisteredMessage(lowerMessage)) {
     return buildNormalizedError('MODEL_NOT_REGISTERED', message, options.details, provider)
   }
-
+  if (isModelNotConfiguredMessage(lowerMessage)) {
+    return buildNormalizedError('MODEL_NOT_CONFIGURED', message, options.details, provider)
+  }
   if (isEmptyResponseMessage(lowerMessage)) {
     return buildNormalizedError('EMPTY_RESPONSE', message, options.details, provider)
   }
 
   if (typeof errorLike.status === 'number') {
     if (errorLike.status === 401) return buildNormalizedError('UNAUTHORIZED', message, options.details, provider)
-    if (errorLike.status === 403) return buildNormalizedError('FORBIDDEN', message, options.details, provider)
+    // 403 可能是欠费（AccountOverdueError），需优先检查消息内容再决定错误码
+    if (errorLike.status === 403) {
+      if (containsAny(lowerMessage, ['accountoverdueerror', 'overdue balance', 'overdue', 'account has an overdue'])) {
+        return buildNormalizedError('INSUFFICIENT_BALANCE', message, options.details, provider)
+      }
+      return buildNormalizedError('FORBIDDEN', message, options.details, provider)
+    }
     if (errorLike.status === 404) return buildNormalizedError('NOT_FOUND', message, options.details, provider)
     if (errorLike.status === 409) return buildNormalizedError('CONFLICT', message, options.details, provider)
     if (errorLike.status === 422) return buildNormalizedError('SENSITIVE_CONTENT', message, options.details, provider)

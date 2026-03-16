@@ -109,23 +109,43 @@ function toMimeFromOutputFormat(outputFormat: string | undefined): string {
   return 'image/png'
 }
 
-function readFirstImagePayload(response: unknown): { b64Json: string | null; url: string | null } {
+interface ImagePayloads {
+  /** 第一张图的 base64（向后兼容） */
+  b64Json: string | null
+  /** 第一张图的 URL（向后兼容） */
+  url: string | null
+  /** 所有图的 URL 列表（接口返回多张时有值） */
+  urls: string[]
+}
+
+function readAllImagePayloads(response: unknown): ImagePayloads {
   if (typeof response !== 'object' || response === null) {
-    return { b64Json: null, url: null }
+    return { b64Json: null, url: null, urls: [] }
   }
   const data = (response as { data?: unknown }).data
   if (!Array.isArray(data) || data.length === 0) {
-    return { b64Json: null, url: null }
+    return { b64Json: null, url: null, urls: [] }
   }
-  const first = data[0]
-  if (typeof first !== 'object' || first === null) {
-    return { b64Json: null, url: null }
+
+  const urls: string[] = []
+  let firstB64: string | null = null
+
+  for (const item of data) {
+    if (typeof item !== 'object' || item === null) continue
+    const rawUrl = (item as { url?: unknown }).url
+    const rawB64 = (item as { b64_json?: unknown }).b64_json
+    if (typeof rawUrl === 'string' && rawUrl.trim()) {
+      urls.push(rawUrl.trim())
+    }
+    if (firstB64 === null && typeof rawB64 === 'string' && rawB64.trim()) {
+      firstB64 = rawB64.trim()
+    }
   }
-  const rawB64 = (first as { b64_json?: unknown }).b64_json
-  const rawUrl = (first as { url?: unknown }).url
+
   return {
-    b64Json: typeof rawB64 === 'string' ? rawB64 : null,
-    url: typeof rawUrl === 'string' ? rawUrl : null,
+    b64Json: firstB64,
+    url: urls[0] ?? null,
+    urls,
   }
 }
 
@@ -161,7 +181,7 @@ export async function generateImageViaOpenAICompat(request: OpenAICompatImageReq
       ...(size ? { size } : {}),
     } as unknown as Parameters<typeof client.images.edit>[0])
 
-    const imagePayload = readFirstImagePayload(response)
+    const imagePayload = readAllImagePayloads(response)
     const imageBase64 = imagePayload.b64Json
     if (typeof imageBase64 === 'string' && imageBase64.trim().length > 0) {
       const mimeType = toMimeFromOutputFormat(outputFormat)
@@ -173,7 +193,11 @@ export async function generateImageViaOpenAICompat(request: OpenAICompatImageReq
     }
     const imageUrl = imagePayload.url
     if (typeof imageUrl === 'string' && imageUrl.trim().length > 0) {
-      return { success: true, imageUrl }
+      return {
+        success: true,
+        imageUrl,
+        ...(imagePayload.urls.length > 1 ? { imageUrls: imagePayload.urls } : {}),
+      }
     }
     throw new Error('OPENAI_COMPAT_IMAGE_EMPTY_RESPONSE: no image data returned')
   }
@@ -187,7 +211,7 @@ export async function generateImageViaOpenAICompat(request: OpenAICompatImageReq
     ...(size ? { size } : {}),
   } as unknown as Parameters<typeof client.images.generate>[0])
 
-  const imagePayload = readFirstImagePayload(response)
+  const imagePayload = readAllImagePayloads(response)
   const imageBase64 = imagePayload.b64Json
   if (typeof imageBase64 === 'string' && imageBase64.trim().length > 0) {
     const mimeType = toMimeFromOutputFormat(outputFormat)
@@ -199,7 +223,11 @@ export async function generateImageViaOpenAICompat(request: OpenAICompatImageReq
   }
   const imageUrl = imagePayload.url
   if (typeof imageUrl === 'string' && imageUrl.trim().length > 0) {
-    return { success: true, imageUrl }
+    return {
+      success: true,
+      imageUrl,
+      ...(imagePayload.urls.length > 1 ? { imageUrls: imagePayload.urls } : {}),
+    }
   }
   throw new Error('OPENAI_COMPAT_IMAGE_EMPTY_RESPONSE: no image data returned')
 }

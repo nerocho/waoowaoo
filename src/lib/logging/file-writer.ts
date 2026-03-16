@@ -127,6 +127,8 @@ async function appendLineAsync(filePath: string, line: string): Promise<void> {
         const dir = modules.path.dirname(filePath)
         modules.fs.mkdirSync(dir, { recursive: true })
         modules.fs.appendFileSync(filePath, line + '\n')
+        // 写入后异步检查是否需要清理（fire-and-forget）
+        void maybeCleanupProjectLog(filePath)
     } catch (err) {
         // Do not propagate, but surface so file-write failures are visible.
         console.error('[file-writer] Failed to write log line to', filePath, err)
@@ -136,6 +138,50 @@ async function appendLineAsync(filePath: string, line: string): Promise<void> {
 function buildLogFilePath(modules: NodeModules, prefix: string, projectName: string): string {
     const fileName = `${prefix}_${sanitizeProjectName(projectName)}.log`
     return modules.path.join(modules.cwd, 'logs', fileName)
+}
+
+// ─── 24h cleanup helpers ─────────────────────────────────────────────
+
+const PROJECT_LOG_MAX_BYTES = 2 * 1024 * 1024 // 2 MB 触发清理
+const LOG_RETENTION_MS = 24 * 60 * 60 * 1000   // 保留 24 小时
+
+/**
+ * 从日志内容中过滤掉 24 小时前的行。
+ * 每行是 JSON，通过 "ts" 字段判断时间。
+ */
+function filterRecentLines(content: string): string {
+    const cutoff = Date.now() - LOG_RETENTION_MS
+    const lines = content.split('\n')
+    const kept = lines.filter((line) => {
+        if (!line.trim()) return false
+        try {
+            const parsed = JSON.parse(line) as { ts?: string }
+            if (parsed.ts) {
+                return new Date(parsed.ts).getTime() >= cutoff
+            }
+        } catch {
+            // 非 JSON 行（如分隔符）保留
+        }
+        return true
+    })
+    return kept.join('\n')
+}
+
+/**
+ * 若项目日志文件超过阈值，清理 24 小时前的内容。
+ */
+async function maybeCleanupProjectLog(filePath: string): Promise<void> {
+    const modules = await getNodeModules()
+    if (!modules) return
+    try {
+        const stat = modules.fs.statSync(filePath)
+        if (stat.size <= PROJECT_LOG_MAX_BYTES) return
+        const content = modules.fs.readFileSync(filePath, 'utf-8')
+        const cleaned = filterRecentLines(content)
+        modules.fs.writeFileSync(filePath, cleaned + '\n')
+    } catch {
+        // 文件不存在或读写失败，忽略
+    }
 }
 
 // ─── prefix mapping ──────────────────────────────────────────────────
@@ -316,5 +362,32 @@ export async function readAllLogs(): Promise<string> {
         return sections.join('\n')
     } catch {
         return ''
+    }
+}
+/**
+ * 清理所有项目日志文件中 24 小时前的内容。
+ * 供 watchdog 定期调用（建议每小时一次）。
+ */
+export async function cleanupAllProjectLogs(): Promise<void> {
+    if (isEdgeOrBrowser()) return
+    const modules = await getNodeModules()
+    if (!modules) return
+
+    const logsDir = modules.path.join(modules.cwd, 'logs')
+    try {
+        const files = modules.fs.readdirSync(logsDir)
+        for (const f of files) {
+            if (!f.endsWith('.log') || f === 'app.log') continue
+            const filePath = modules.path.join(logsDir, f)
+            try {
+                const content = modules.fs.readFileSync(filePath, 'utf-8')
+                const cleaned = filterRecentLines(content)
+                modules.fs.writeFileSync(filePath, cleaned + '\n')
+            } catch {
+                // 单个文件失败不影响其他
+            }
+        }
+    } catch {
+        // logs 目录不存在等情况，忽略
     }
 }

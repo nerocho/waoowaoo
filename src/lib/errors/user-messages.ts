@@ -12,6 +12,7 @@ export const USER_ERROR_MESSAGES_ZH: Record<UnifiedErrorCode, string> = {
   RATE_LIMIT: '请求过于频繁，请稍后重试。',
   MODEL_NOT_OPEN: '模型权限未开通。请前往 https://console.volcengine.com/ark/region:ark+cn-beijing/openManagement?LLM=%7B%7D&advancedActiveKey=model ，在模型管理页面点击右上角「一键开通所有模型」。',
   MODEL_NOT_REGISTERED: '模型尚未注册，请先完成模型配置后再试。',
+  MODEL_NOT_CONFIGURED: '未配置可用模型，请先前往设置页面添加对应类型的模型后再试。',
   QUOTA_EXCEEDED: '额度已用尽，请稍后再试。',
   EXTERNAL_ERROR: '外部服务暂时不可用，请稍后重试。',
   NETWORK_ERROR: '网络异常，请稍后重试。',

@@ -276,6 +276,130 @@ export async function resolveImageSourceFromGeneration(
   return polled.url
 }
 
+/**
+ * 多图版本：一次生成调用返回所有图片 URL 数组。
+ *
+ * - 接口返回多张（result.imageUrls）→ 返回完整列表
+ * - 接口只返回单张（result.imageUrl / result.imageBase64）→ 封装成 [url] 保持接口一致
+ * - 异步任务：轮询结果只有一个 URL，封装成 [url]
+ *
+ * 现有代码请继续使用 resolveImageSourceFromGeneration（取第一张），
+ * 只有需要利用多图结果时才调用此函数。
+ */
+export async function resolveImageSourcesFromGeneration(
+  job: Job<TaskJobData>,
+  params: {
+    userId: string
+    modelId: string
+    prompt: string
+    options?: {
+      referenceImages?: string[]
+      aspectRatio?: string
+      resolution?: string
+      size?: string
+      provider?: string
+    }
+    allowTaskExternalIdResume?: boolean
+    pollProgress?: { start?: number; end?: number }
+  },
+): Promise<string[]> {
+  const logger = scopedWorkerUtilLogger(job, 'worker.image.generate_sources')
+  const startedAt = Date.now()
+  const allowTaskExternalIdResume = params.allowTaskExternalIdResume !== false
+
+  // 服务重启续接：若 DB 中已有 externalId，直接恢复轮询（异步只有一张）
+  if (allowTaskExternalIdResume) {
+    const resumeExternalId = await getTaskExistingExternalId(job.data.taskId)
+    if (resumeExternalId) {
+      logger.info({
+        message: 'image sources generation resumed from existing external id',
+        details: { externalId: resumeExternalId },
+      })
+      const polled = await waitExternalResult(job, resumeExternalId, params.userId, {
+        progressStart: params.pollProgress?.start ?? 40,
+        progressEnd: params.pollProgress?.end ?? 92,
+      })
+      return [polled.url]
+    }
+  }
+
+  logger.info({
+    message: 'image sources generation started',
+    provider: params.options?.provider || undefined,
+    details: { model: params.modelId },
+  })
+
+  const runtimeSelections: Record<string, string | number | boolean> = {}
+  if (typeof params.options?.resolution === 'string') {
+    runtimeSelections.resolution = params.options.resolution
+  }
+
+  const capabilityOptions = await resolveProjectModelCapabilityGenerationOptions({
+    projectId: job.data.projectId,
+    userId: params.userId,
+    modelType: 'image',
+    modelKey: params.modelId,
+    runtimeSelections,
+  })
+
+  const result = await withLogContext(
+    { projectId: job.data.projectId, taskId: job.data.taskId, userId: params.userId },
+    () => generateImage(params.userId, params.modelId, params.prompt, {
+      ...params.options,
+      ...capabilityOptions,
+    }),
+  )
+  if (!result.success) {
+    throw new Error(result.error || 'Image generation failed')
+  }
+
+  // 优先使用多图列表
+  if (result.imageUrls && result.imageUrls.length > 0) {
+    logger.info({
+      message: 'image sources generation completed (multi-image)',
+      provider: params.options?.provider || undefined,
+      durationMs: Date.now() - startedAt,
+      details: { count: result.imageUrls.length },
+    })
+    return result.imageUrls
+  }
+
+  if (result.imageUrl) {
+    logger.info({
+      message: 'image sources generation completed (single url)',
+      provider: params.options?.provider || undefined,
+      durationMs: Date.now() - startedAt,
+    })
+    return [result.imageUrl]
+  }
+
+  if (result.imageBase64) {
+    logger.info({
+      message: 'image sources generation completed (base64)',
+      provider: params.options?.provider || undefined,
+      durationMs: Date.now() - startedAt,
+    })
+    return [`data:image/png;base64,${result.imageBase64}`]
+  }
+
+  const externalId = normalizeExternalId(result, 'IMAGE')
+  if (!externalId) {
+    throw new Error('Image generation returned no image and no external id')
+  }
+
+  const polled = await waitExternalResult(job, externalId, params.userId, {
+    progressStart: params.pollProgress?.start ?? 40,
+    progressEnd: params.pollProgress?.end ?? 92,
+  })
+  logger.info({
+    message: 'image sources generation completed (async)',
+    provider: params.options?.provider || undefined,
+    durationMs: Date.now() - startedAt,
+    details: { externalId },
+  })
+  return [polled.url]
+}
+
 export async function resolveVideoSourceFromGeneration(
   job: Job<TaskJobData>,
   params: {

@@ -190,15 +190,18 @@ export default function LocationCard({
           prefix={isGroupTaskRunning ? (
             <TaskStatusInline state={displayTaskPresentation} className="[&_span]:sr-only [&_svg]:text-[var(--glass-tone-info-fg)]" />
           ) : (
-            <AppIcon name="refresh" className="w-4 h-4 text-[var(--glass-tone-info-fg)]" />
+            <>
+              <AppIcon name="refresh" className="w-4 h-4 text-[var(--glass-tone-info-fg)]" />
+              <span className="text-[10px] font-medium text-[var(--glass-tone-info-fg)] ml-0.5">{t('image.regenCountPrefix')}</span>
+            </>
           )}
-          suffix={null}
+          suffix={<span className="text-[10px] font-medium text-[var(--glass-tone-info-fg)]">{t('image.regenCountSuffix')}</span>}
           value={generationCount}
           options={getImageGenerationCountOptions('location')}
           onValueChange={setGenerationCount}
           onClick={() => onRegenerate(generationCount)}
           disabled={isTaskRunning || isAnyTaskRunning || uploadImage.isPending}
-          ariaLabel={t('image.selectCount')}
+          ariaLabel={t('image.regenCountAriaLabel')}
           className="inline-flex h-6 items-center gap-0.5 rounded px-1 hover:bg-[var(--glass-tone-info-bg)] transition-colors disabled:opacity-50"
           selectClassName="appearance-none bg-transparent border-0 pl-0 pr-3 text-[10px] font-semibold text-[var(--glass-tone-info-fg)] outline-none cursor-pointer leading-none transition-colors"
         />

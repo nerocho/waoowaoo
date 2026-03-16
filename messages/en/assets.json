@@ -85,6 +85,9 @@
         "selectCount": "Select generation count",
         "generateCountPrefix": "Generate",
         "generateCountSuffix": "images",
+        "regenCountPrefix": "Regenerate",
+        "regenCountSuffix": "",
+        "regenCountAriaLabel": "Select regeneration count",
         "generatedProgress": "Generated {generated}/{total}",
         "generating": "Generating",
         "regenerating": "Regenerating",
@@ -188,7 +191,8 @@
         "regenerateAll": "Regenerate All",
         "regenerateAllConfirm": "Regenerate images for all assets? This will overwrite existing images.",
         "noAssetsToGenerate": "No assets available for generation",
-        "regenerateAllHint": "Regenerate all asset images (overwrite existing)"
+        "regenerateAllHint": "Regenerate all asset images (overwrite existing)",
+        "downloadAll": "Download all images as ZIP"
     },
     "common": {
         "actions": "Actions",
@@ -241,7 +245,9 @@
         "copySuccessCharacter": "Character appearance copied successfully",
         "copySuccessLocation": "Location image copied successfully",
         "copySuccessVoice": "Voice copied successfully",
-        "copyFailed": "Copy failed: {error}"
+        "copyFailed": "Copy failed: {error}",
+        "downloadEmpty": "No image assets to download",
+        "downloadFailed": "Download failed"
     },
     "tts": {
         "voiceDesignSaved": "AI-designed voice has been set for {name}",

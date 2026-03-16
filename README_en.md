@@ -73,6 +73,11 @@ docker compose down && docker compose up -d --build
 ```bash
 git clone https://github.com/saturndec/waoowaoo.git
 cd waoowaoo
+
+# Copy environment config (must be done before npm install)
+cp .env.example .env
+# ⚠️ Edit .env to fill in your AI API Keys (NEXTAUTH_URL defaults to http://localhost:3000, no change needed)
+
 npm install
 
 # Start infrastructure only

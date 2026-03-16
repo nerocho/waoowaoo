@@ -133,6 +133,36 @@ describe('image provider smoke tests', () => {
     })
   })
 
+  it('Seedream 返回多图时 -> 同时返回 imageUrl 和 imageUrls', async () => {
+    getProviderConfigMock.mockResolvedValueOnce({
+      id: 'ark',
+      apiKey: 'ark-key',
+    })
+    arkImageGenerationMock.mockResolvedValueOnce({
+      data: [
+        { url: 'https://seedream.test/image-1.png' },
+        { url: 'https://seedream.test/image-2.png' },
+      ],
+    })
+
+    const generator = new ArkSeedreamGenerator()
+    const result = await generator.generate({
+      userId: 'user-1',
+      prompt: 'refine this style',
+      referenceImages: ['https://example.com/ref.png'],
+      options: {
+        modelId: 'doubao-seedream-4-5-251128',
+        aspectRatio: '3:4',
+      },
+    })
+
+    expect(result).toEqual({
+      success: true,
+      imageUrl: 'https://seedream.test/image-1.png',
+      imageUrls: ['https://seedream.test/image-1.png', 'https://seedream.test/image-2.png'],
+    })
+  })
+
   it('Gemini 兼容层文生图可用 -> 直连 Gemini SDK 协议返回图片', async () => {
     getProviderConfigMock.mockResolvedValueOnce({
       id: 'gemini-compatible:gm-1',

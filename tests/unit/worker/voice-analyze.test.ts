@@ -4,6 +4,7 @@ import { TASK_TYPE, type TaskJobData } from '@/lib/task/types'
 
 const txState = vi.hoisted(() => ({
   createdRows: [] as Array<Record<string, unknown>>,
+  deletedWhereClauses: [] as Array<Record<string, unknown>>,
 }))
 
 const prismaMock = vi.hoisted(() => ({
@@ -79,6 +80,7 @@ describe('worker voice-analyze behavior', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     txState.createdRows = []
+    txState.deletedWhereClauses = []
 
     prismaMock.project.findUnique.mockResolvedValue({ id: 'project-1', mode: 'novel-promotion' })
     prismaMock.novelPromotionProject.findUnique.mockResolvedValue({
@@ -121,7 +123,7 @@ describe('worker voice-analyze behavior', () => {
 
     prismaMock.$transaction.mockImplementation(async (fn: (tx: {
       novelPromotionVoiceLine: {
-        deleteMany: (args: { where: { episodeId: string } }) => Promise<unknown>
+        deleteMany: (args: { where: Record<string, unknown> }) => Promise<unknown>
         create: (args: { data: Record<string, unknown>; select: { id: boolean; speaker: boolean; matchedStoryboardId: boolean } }) => Promise<{
           id: string
           speaker: string
@@ -131,7 +133,10 @@ describe('worker voice-analyze behavior', () => {
     }) => Promise<unknown>) => {
       const tx = {
         novelPromotionVoiceLine: {
-          deleteMany: async () => undefined,
+          deleteMany: async (args: { where: Record<string, unknown> }) => {
+            txState.deletedWhereClauses.push(args.where)
+            return undefined
+          },
           create: async (args: { data: Record<string, unknown>; select: { id: boolean; speaker: boolean; matchedStoryboardId: boolean } }) => {
             txState.createdRows.push(args.data)
             const speaker = typeof args.data.speaker === 'string' ? args.data.speaker : 'unknown'
@@ -178,6 +183,30 @@ describe('worker voice-analyze behavior', () => {
       matchedStoryboardId: 'storyboard-1',
       matchedPanelIndex: 0,
     }))
+    expect(txState.deletedWhereClauses[0]).toEqual({
+      episodeId: 'episode-1',
+      lineIndex: {
+        notIn: [1, 2],
+      },
+    })
+  })
+
+  it('empty voice lines -> success with zero rows and clears existing lines', async () => {
+    helperMock.parseVoiceLinesJson.mockReturnValue([])
+
+    const job = buildJob({ episodeId: 'episode-1' })
+    const result = await handleVoiceAnalyzeTask(job)
+
+    expect(result).toEqual({
+      episodeId: 'episode-1',
+      count: 0,
+      matchedCount: 0,
+      speakerStats: {},
+    })
+    expect(txState.createdRows).toEqual([])
+    expect(txState.deletedWhereClauses[0]).toEqual({
+      episodeId: 'episode-1',
+    })
   })
 
   it('line references non-existent storyboard panel -> explicit error', async () => {

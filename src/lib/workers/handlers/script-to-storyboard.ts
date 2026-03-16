@@ -590,14 +590,22 @@ export async function handleScriptToStoryboardTask(job: Job<TaskJobData>) {
     const nextLineIndexes = voiceLineRows
       .map((row) => (typeof row.lineIndex === 'number' && Number.isFinite(row.lineIndex) ? Math.floor(row.lineIndex) : -1))
       .filter((value) => value > 0)
-    await voiceLineModel.deleteMany({
-      where: {
-        episodeId,
-        lineIndex: {
-          notIn: nextLineIndexes.length > 0 ? nextLineIndexes : [0],
+    if (nextLineIndexes.length === 0) {
+      await voiceLineModel.deleteMany({
+        where: {
+          episodeId,
         },
-      },
-    })
+      })
+    } else {
+      await voiceLineModel.deleteMany({
+        where: {
+          episodeId,
+          lineIndex: {
+            notIn: nextLineIndexes,
+          },
+        },
+      })
+    }
     return created
   }, { timeout: 15000 })
 

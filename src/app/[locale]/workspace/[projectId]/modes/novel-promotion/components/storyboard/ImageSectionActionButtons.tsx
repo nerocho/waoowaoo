@@ -5,6 +5,8 @@ import { AppIcon } from '@/components/ui/icons'
 import ImageGenerationInlineCountButton from '@/components/image-generation/ImageGenerationInlineCountButton'
 import { getImageGenerationCountOptions } from '@/lib/image-generation/count'
 import { useImageGenerationCount } from '@/lib/image-generation/use-image-generation-count'
+import { AI_EDIT_BUTTON_CLASS, AI_EDIT_ICON_CLASS } from '@/components/ui/ai-edit-style'
+import AISparklesIcon from '@/components/ui/icons/AISparklesIcon'
 
 interface ImageSectionActionButtonsProps {
   panelId: string
@@ -77,9 +79,10 @@ export default function ImageSectionActionButtons({
             {imageUrl && (
               <button
                 onClick={onOpenEditModal}
-                className={`glass-btn-base glass-btn-secondary flex items-center gap-0.5 px-1.5 py-0.5 rounded-md text-[10px] transition-all active:scale-95 ${isSubmittingPanelImageTask || isModifying ? 'opacity-75' : ''}`}
+                className={`glass-btn-base h-6 w-6 rounded-full flex items-center justify-center transition-all active:scale-95 ${AI_EDIT_BUTTON_CLASS} ${isSubmittingPanelImageTask || isModifying ? 'opacity-75' : ''}`}
+                title={t('image.editImage')}
               >
-                <span>{t('image.editImage')}</span>
+                <AISparklesIcon className={`w-2.5 h-2.5 ${AI_EDIT_ICON_CLASS}`} />
               </button>
             )}
 

@@ -36,6 +36,23 @@ function resolveModelRef(request: OpenAICompatImageRequest): string {
   throw new Error('OPENAI_COMPAT_IMAGE_MODEL_REF_REQUIRED')
 }
 
+function readTemplateOutputUrls(value: unknown): string[] {
+  if (!Array.isArray(value)) return []
+  const urls: string[] = []
+  for (const item of value) {
+    if (typeof item === 'string' && item.trim()) {
+      urls.push(item.trim())
+      continue
+    }
+    if (!item || typeof item !== 'object' || Array.isArray(item)) continue
+    const url = (item as { url?: unknown }).url
+    if (typeof url === 'string' && url.trim()) {
+      urls.push(url.trim())
+    }
+  }
+  return urls
+}
+
 export async function generateImageViaOpenAICompatTemplate(
   request: OpenAICompatImageRequest,
 ): Promise<GenerateResult> {
@@ -82,30 +99,23 @@ export async function generateImageViaOpenAICompatTemplate(
   }
 
   if (request.template.mode === 'sync') {
+    const outputUrls = readTemplateOutputUrls(
+      readJsonPath(payload, request.template.response.outputUrlsPath),
+    )
+    if (outputUrls.length > 0) {
+      const first = outputUrls[0]
+      return {
+        success: true,
+        imageUrl: first,
+        ...(outputUrls.length > 1 ? { imageUrls: outputUrls } : {}),
+      }
+    }
+
     const outputUrl = readJsonPath(payload, request.template.response.outputUrlPath)
     if (typeof outputUrl === 'string' && outputUrl.trim().length > 0) {
       return {
         success: true,
         imageUrl: outputUrl.trim(),
-      }
-    }
-    const outputUrls = readJsonPath(payload, request.template.response.outputUrlsPath)
-    if (Array.isArray(outputUrls) && outputUrls.length > 0) {
-      const first = outputUrls[0]
-      if (typeof first === 'string' && first.trim()) {
-        return {
-          success: true,
-          imageUrl: first.trim(),
-        }
-      }
-      if (first && typeof first === 'object' && !Array.isArray(first)) {
-        const firstUrl = (first as { url?: unknown }).url
-        if (typeof firstUrl === 'string' && firstUrl.trim()) {
-          return {
-            success: true,
-            imageUrl: firstUrl.trim(),
-          }
-        }
       }
     }
     throw new Error('OPENAI_COMPAT_IMAGE_TEMPLATE_OUTPUT_NOT_FOUND')

@@ -10,6 +10,8 @@ import { resolveTaskPresentationState } from '@/lib/task/presentation'
 import { AppIcon } from '@/components/ui/icons'
 import { SegmentedControl } from '@/components/ui/SegmentedControl'
 
+
+
 interface Character {
     id: string
     name: string
@@ -67,6 +69,8 @@ interface AssetGridProps {
     onAddCharacter: () => void
     onAddLocation: () => void
     onAddVoice: () => void
+    onDownloadAll?: () => void
+    isDownloading?: boolean
     selectedFolderId: string | null
     onImageClick?: (url: string) => void
     onImageEdit?: (type: 'character' | 'location', id: string, name: string, imageIndex: number, appearanceIndex?: number) => void
@@ -89,6 +93,8 @@ export function AssetGrid({
     onAddCharacter,
     onAddLocation,
     onAddVoice,
+    onDownloadAll,
+    isDownloading,
     selectedFolderId: _selectedFolderId,
     onImageClick,
     onImageEdit,
@@ -192,8 +198,19 @@ export function AssetGrid({
                     )
                 })()}
 
-                {/* 右侧新建按钮 */}
+                {/* 右侧操作按钮 */}
                 <div className="flex items-center gap-3">
+                    {onDownloadAll && (
+                        <button
+                            onClick={onDownloadAll}
+                            disabled={isDownloading || isEmpty}
+                            title={t('downloadAllTitle')}
+                            className="glass-btn-base glass-btn-secondary px-4 py-2 rounded-lg text-sm disabled:opacity-50 disabled:cursor-not-allowed"
+                        >
+                            <AppIcon name={isDownloading ? 'refresh' : 'download'} className={`w-4 h-4 ${isDownloading ? 'animate-spin' : ''}`} />
+                            <span>{isDownloading ? t('downloading') : t('downloadAll')}</span>
+                        </button>
+                    )}
                     <button
                         onClick={onAddCharacter}
                         className="glass-btn-base glass-btn-primary px-4 py-2 rounded-lg text-sm"

@@ -248,7 +248,12 @@ export class ArkImageGenerator extends BaseImageGenerator {
             logPrefix: '[ARK Image]'
         })
 
-        const imageUrl = arkData.data?.[0]?.url
+        const imageUrls = Array.isArray(arkData.data)
+            ? arkData.data
+                .map((item) => (typeof item?.url === 'string' ? item.url.trim() : ''))
+                .filter((item) => item.length > 0)
+            : []
+        const imageUrl = imageUrls[0]
 
         if (!imageUrl) {
             throw new Error('ARK 未返回图片 URL')
@@ -256,7 +261,8 @@ export class ArkImageGenerator extends BaseImageGenerator {
 
         return {
             success: true,
-            imageUrl
+            imageUrl,
+            ...(imageUrls.length > 1 ? { imageUrls } : {}),
         }
     }
 }

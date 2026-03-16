@@ -308,14 +308,22 @@ export async function handleVoiceAnalyzeTask(job: Job<TaskJobData>) {
     }
 
     const incomingLineIndexes = new Set<number>(voiceLinesData.map((item) => item.lineIndex))
-    await voiceLineModel.deleteMany({
-      where: {
-        episodeId,
-        lineIndex: {
-          notIn: Array.from(incomingLineIndexes),
+    if (incomingLineIndexes.size === 0) {
+      await voiceLineModel.deleteMany({
+        where: {
+          episodeId,
         },
-      },
-    })
+      })
+    } else {
+      await voiceLineModel.deleteMany({
+        where: {
+          episodeId,
+          lineIndex: {
+            notIn: Array.from(incomingLineIndexes),
+          },
+        },
+      })
+    }
 
     return created
   })

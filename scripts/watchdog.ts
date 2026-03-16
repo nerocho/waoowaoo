@@ -5,10 +5,14 @@ import { resolveTaskLocaleFromBody } from '@/lib/task/resolve-locale'
 import { markTaskFailed } from '@/lib/task/service'
 import { publishTaskEvent } from '@/lib/task/publisher'
 import { TASK_EVENT_TYPE, TASK_TYPE, type TaskType } from '@/lib/task/types'
+import { cleanupAllProjectLogs } from '@/lib/logging/file-writer'
 
 const INTERVAL_MS = Number.parseInt(process.env.WATCHDOG_INTERVAL_MS || '30000', 10) || 30000
 const HEARTBEAT_TIMEOUT_MS = Number.parseInt(process.env.TASK_HEARTBEAT_TIMEOUT_MS || '90000', 10) || 90000
 const TASK_TYPE_SET: ReadonlySet<string> = new Set(Object.values(TASK_TYPE))
+// 每小时执行一次日志清理
+const LOG_CLEANUP_INTERVAL_TICKS = Math.ceil(3600_000 / INTERVAL_MS)
+let tickCount = 0
 const logger = createScopedLogger({
   module: 'watchdog',
   action: 'watchdog.tick',
@@ -181,10 +185,15 @@ async function cleanupZombieProcessingTasks() {
 }
 
 async function tick() {
+  tickCount++
   const startedAt = Date.now()
   try {
     await recoverQueuedTasks()
     await cleanupZombieProcessingTasks()
+    // 每小时清理一次日志（过滤 24h 前内容）
+    if (tickCount % LOG_CLEANUP_INTERVAL_TICKS === 0) {
+      void cleanupAllProjectLogs()
+    }
     logger.info({
       action: 'watchdog.tick.ok',
       message: 'watchdog tick completed',

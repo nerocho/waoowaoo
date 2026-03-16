@@ -6,6 +6,7 @@
     "RATE_LIMIT": "Too many requests. Please retry in {retryAfter} seconds",
     "MODEL_NOT_OPEN": "Model permission is not activated. Go to https://console.volcengine.com/ark/region:ark+cn-beijing/openManagement?LLM=%7B%7D&advancedActiveKey=model and click \"Activate all models\" in the top-right of Model Management",
     "MODEL_NOT_REGISTERED": "Model is not registered. Add an available model in configuration first",
+    "MODEL_NOT_CONFIGURED": "No model configured. Please go to Settings and add the required model type before generating.",
     "QUOTA_EXCEEDED": "Quota exceeded. Please try again later",
     "GENERATION_FAILED": "Generation failed. Please retry",
     "GENERATION_TIMEOUT": "Generation timed out. Please retry",

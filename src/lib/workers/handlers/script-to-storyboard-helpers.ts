@@ -1,4 +1,4 @@
-import { safeParseJsonArray } from '@/lib/json-repair'
+import { safeParseJson, safeParseJsonArray } from '@/lib/json-repair'
 import { prisma } from '@/lib/prisma'
 import type { StoryboardPanel } from '@/lib/storyboard-phases'
 
@@ -52,6 +52,10 @@ function parsePanelCharacters(raw: string | null): string[] {
 export function parseVoiceLinesJson(responseText: string): JsonRecord[] {
   const rows = safeParseJsonArray(responseText)
   if (rows.length === 0) {
+    const raw = safeParseJson(responseText)
+    if (Array.isArray(raw) && raw.length === 0) {
+      return []
+    }
     throw new Error('voice_analyze: invalid payload')
   }
   return rows as JsonRecord[]

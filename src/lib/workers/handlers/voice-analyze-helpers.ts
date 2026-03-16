@@ -1,4 +1,4 @@
-import { safeParseJsonArray } from '@/lib/json-repair'
+import { safeParseJson, safeParseJsonArray } from '@/lib/json-repair'
 
 export interface StoryboardPanelLike {
   panelIndex: number
@@ -78,6 +78,10 @@ export function buildStoryboardJson(storyboards: StoryboardLike[]): string {
 export function parseVoiceLinesJson(responseText: string): VoiceLinePayload[] {
   const parsed = safeParseJsonArray(responseText)
   if (parsed.length === 0) {
+    const raw = safeParseJson(responseText)
+    if (Array.isArray(raw) && raw.length === 0) {
+      return []
+    }
     throw new Error('Invalid voice lines data structure')
   }
   const voiceLines = parsed

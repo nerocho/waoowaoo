@@ -81,17 +81,27 @@ docker compose down && docker compose up -d --build
 ```bash
 git clone https://github.com/saturndec/waoowaoo.git
 cd waoowaoo
+
+# 复制环境变量配置文件（必须在 npm install 之前完成）
+cp .env.example .env
+# ⚠️ 编辑 .env，填入你的 AI API Key（NEXTAUTH_URL 默认已是 http://localhost:3000，无需修改）
+
 npm install
 
 # 只启动基础设施
+# 注意：docker-compose.yml 将服务映射到非标准端口，.env.example 已按此预设
+mysql:13306  redis:16379  minio:19000
 docker compose up mysql redis minio -d
 
-# 运行数据库迁移
+# 初始化数据库表结构（首次必须执行，跳过会导致启动后报错）
 npx prisma db push
 
 # 启动开发服务器
 npm run dev
 ```
+
+> [!WARNING]
+> 跳过 `npx prisma db push` 会导致所有数据库表不存在，启动后报错 `The table 'tasks' does not exist`。请务必先运行此命令再启动开发服务器。
 
 ---
 

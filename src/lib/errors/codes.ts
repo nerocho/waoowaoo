@@ -87,6 +87,13 @@ export const ERROR_CATALOG = {
     userMessageKey: 'errors.MODEL_NOT_REGISTERED',
     defaultMessage: 'Model is not registered',
   },
+  MODEL_NOT_CONFIGURED: {
+    httpStatus: 400,
+    retryable: false,
+    category: ERROR_CATEGORY.PROVIDER,
+    userMessageKey: 'errors.MODEL_NOT_CONFIGURED',
+    defaultMessage: 'Model is not configured. Please add a model in the settings first.',
+  },
   QUOTA_EXCEEDED: {
     httpStatus: 429,
     retryable: true,

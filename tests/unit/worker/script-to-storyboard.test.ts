@@ -76,6 +76,7 @@ const runScriptToStoryboardAtomicRetryMock = vi.hoisted(() => vi.fn())
 
 const txState = vi.hoisted(() => ({
   createdRows: [] as Array<Record<string, unknown>>,
+  deletedWhereClauses: [] as Array<Record<string, unknown>>,
 }))
 
 const prismaMock = vi.hoisted(() => ({
@@ -241,6 +242,7 @@ describe('worker script-to-storyboard behavior', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     txState.createdRows = []
+    txState.deletedWhereClauses = []
     parseStoryboardRetryTargetMock.mockReturnValue(null)
     runScriptToStoryboardAtomicRetryMock.mockReset()
 
@@ -274,13 +276,16 @@ describe('worker script-to-storyboard behavior', () => {
 
     prismaMock.$transaction.mockImplementation(async (fn: (tx: {
       novelPromotionVoiceLine: {
-        deleteMany: (args: { where: { episodeId: string } }) => Promise<unknown>
+        deleteMany: (args: { where: Record<string, unknown> }) => Promise<unknown>
         create: (args: { data: Record<string, unknown>; select: { id: boolean } }) => Promise<{ id: string }>
       }
     }) => Promise<unknown>) => {
       const tx = {
         novelPromotionVoiceLine: {
-          deleteMany: async () => undefined,
+          deleteMany: async (args: { where: Record<string, unknown> }) => {
+            txState.deletedWhereClauses.push(args.where)
+            return undefined
+          },
           create: async (args: { data: Record<string, unknown>; select: { id: boolean } }) => {
             txState.createdRows.push(args.data)
             return { id: `voice-${txState.createdRows.length}` }
@@ -328,6 +333,12 @@ describe('worker script-to-storyboard behavior', () => {
       matchedStoryboardId: 'storyboard-1',
       matchedPanelIndex: 1,
     }))
+    expect(txState.deletedWhereClauses[0]).toEqual({
+      episodeId: 'episode-1',
+      lineIndex: {
+        notIn: [1],
+      },
+    })
   })
 
   it('voice 解析失败后会重试一次再成功', async () => {
@@ -369,6 +380,24 @@ describe('worker script-to-storyboard behavior', () => {
         message: '台词分析失败，准备重试 (2/2)',
       }),
     )
+  })
+
+  it('空台词数组 -> 成功完成并清空旧台词', async () => {
+    parseVoiceLinesJsonMock.mockReturnValue([])
+
+    const job = buildJob({ episodeId: 'episode-1' })
+    const result = await handleScriptToStoryboardTask(job)
+
+    expect(result).toEqual({
+      episodeId: 'episode-1',
+      storyboardCount: 1,
+      panelCount: 1,
+      voiceLineCount: 0,
+    })
+    expect(txState.createdRows).toEqual([])
+    expect(txState.deletedWhereClauses[0]).toEqual({
+      episodeId: 'episode-1',
+    })
   })
 
   it('phase 级重试: 仅执行原子 phase，不走整图重跑', async () => {
