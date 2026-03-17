@@ -80,4 +80,26 @@ describe('task state service helpers', () => {
     expect(state.lastError?.code).toBe('INVALID_PARAMS')
     expect(state.lastError?.message).toBe('bad input')
   })
+
+  it('treats canceled task as failed presentation state', () => {
+    const state = resolveTargetState(
+      { targetType: 'GlobalCharacter', targetId: 'c1' },
+      [
+        {
+          id: 'task-3',
+          type: 'asset_hub_image',
+          status: 'canceled',
+          progress: 100,
+          payload: { ui: { intent: 'modify', hasOutputAtStart: true } },
+          errorCode: 'TASK_CANCELLED',
+          errorMessage: 'Task cancelled by user',
+          updatedAt: new Date('2026-02-25T00:00:00.000Z'),
+        },
+      ],
+    )
+
+    expect(state.phase).toBe('failed')
+    expect(state.lastError?.code).toBe('CONFLICT')
+    expect(state.lastError?.message).toBe('Task cancelled by user')
+  })
 })

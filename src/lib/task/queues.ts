@@ -59,6 +59,11 @@ const VOICE_TYPES = new Set<TaskType>([
   TASK_TYPE.ASSET_HUB_VOICE_DESIGN,
 ])
 
+const SINGLE_ATTEMPT_TASK_TYPES = new Set<TaskType>([
+  TASK_TYPE.STORY_TO_SCRIPT_RUN,
+  TASK_TYPE.SCRIPT_TO_STORYBOARD_RUN,
+])
+
 export function getQueueTypeByTaskType(type: TaskType): QueueType {
   if (IMAGE_TYPES.has(type)) return 'image'
   if (VIDEO_TYPES.has(type)) return 'video'
@@ -84,10 +89,14 @@ export async function addTaskJob(data: TaskJobData, opts?: JobsOptions) {
   const queueType = getQueueTypeByTaskType(data.type)
   const queue = getQueueByType(queueType)
   const priority = typeof opts?.priority === 'number' ? opts.priority : 0
+  const attempts = SINGLE_ATTEMPT_TASK_TYPES.has(data.type)
+    ? 1
+    : (typeof opts?.attempts === 'number' ? opts.attempts : undefined)
   return await queue.add(data.type, data, {
     jobId: data.taskId,
     priority,
     ...(opts || {}),
+    ...(attempts !== undefined ? { attempts } : {}),
   })
 }
 

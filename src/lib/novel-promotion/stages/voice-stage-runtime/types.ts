@@ -20,7 +20,7 @@ export interface VoiceLine {
   matchedPanelIndex?: number | null
 }
 
-export type PendingVoiceTaskStatus = 'queued' | 'processing' | 'completed' | 'failed' | null
+export type PendingVoiceTaskStatus = 'queued' | 'processing' | 'completed' | 'failed' | 'canceled' | null
 
 export interface PendingVoiceGenerationState {
   submittedUpdatedAt: string | null

@@ -125,7 +125,7 @@ export function resolveTargetState(
 
   const running = filtered.find((task) => ACTIVE_STATUS.has(task.status)) || null
   const terminal = filtered.find((task) =>
-    task.status === 'completed' || task.status === 'failed'
+    task.status === 'completed' || task.status === 'failed' || task.status === 'canceled'
   ) || null
   const latest = running || terminal
 
@@ -240,7 +240,7 @@ export async function queryTaskTargetStates(params: {
           targetId: item.targetId,
         })),
         status: {
-          in: ['queued', 'processing', 'completed', 'failed'],
+          in: ['queued', 'processing', 'completed', 'failed', 'canceled'],
         },
         ...typeFilter,
       },

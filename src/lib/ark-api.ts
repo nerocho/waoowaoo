@@ -1,3 +1,4 @@
+import { getInternalBaseUrl } from '@/lib/env'
 import { logInfo as _ulogInfo, logError as _ulogError } from '@/lib/logging/core'
 /**
  * 火山引擎 API 统一调用工具
@@ -265,7 +266,7 @@ async function fetchWithTimeout(
     let fullUrl = url
     if (url.startsWith('/')) {
         // 服务端 fetch 需要完整 URL，使用 localhost:3000 作为基础地址
-        const baseUrl = process.env.NEXTAUTH_URL || 'http://localhost:3000'
+        const baseUrl = getInternalBaseUrl()
         fullUrl = `${baseUrl}${url}`
     }
 

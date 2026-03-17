@@ -132,4 +132,36 @@ describe('createWorkerLLMStreamCallbacks', () => {
     expect(payload.stepTitle).toBe('A')
     expect(payload.output).toBe('characters-final')
   })
+
+  it('uses injected active controller for run-owned workflows', async () => {
+    const job = buildJob()
+    const context = createWorkerLLMStreamContext(job, 'story_to_script')
+    const assertActive = vi.fn(async (_stage: string) => undefined)
+    const isActive = vi.fn(async () => true)
+    const callbacks = createWorkerLLMStreamCallbacks(job, context, {
+      assertActive,
+      isActive,
+    })
+
+    callbacks.onChunk?.({
+      kind: 'text',
+      delta: 'hello',
+      seq: 1,
+      lane: 'main',
+      step: { id: 'split_clips', attempt: 1, title: 'split', index: 1, total: 1 },
+    })
+    await callbacks.flush()
+
+    expect(assertActive).toHaveBeenCalledWith('worker_llm_stream')
+    expect(assertTaskActiveMock).not.toHaveBeenCalled()
+    expect(reportTaskStreamChunkMock).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({
+        delta: 'hello',
+      }),
+      expect.objectContaining({
+        stepId: 'split_clips',
+      }),
+    )
+  })
 })

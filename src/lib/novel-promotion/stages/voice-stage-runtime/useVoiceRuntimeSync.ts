@@ -72,7 +72,13 @@ async function fetchTaskStatus(taskId: string): Promise<{
       : typeof payload.task?.errorMessage === 'string'
         ? payload.task.errorMessage
         : null
-  if (status === 'queued' || status === 'processing' || status === 'completed' || status === 'failed') {
+  if (
+    status === 'queued'
+    || status === 'processing'
+    || status === 'completed'
+    || status === 'failed'
+    || status === 'canceled'
+  ) {
     return { status, errorMessage }
   }
   return { status: null, errorMessage }
@@ -97,7 +103,7 @@ export function useVoiceRuntimeSync({
 
   useEffect(() => {
     for (const [lineId, pending] of pendingEntries) {
-      if (pending.taskStatus !== 'failed') continue
+      if (pending.taskStatus !== 'failed' && pending.taskStatus !== 'canceled') continue
       const failureKey = pending.taskId || lineId
       if (reportedFailedTaskIdsRef.current.has(failureKey)) continue
       reportedFailedTaskIdsRef.current.add(failureKey)

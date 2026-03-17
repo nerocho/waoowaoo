@@ -209,4 +209,48 @@ describe('useVoiceRuntimeSync', () => {
       errorMessage: 'QwenTTS voiceId missing',
     })
   })
+
+  it('treats canceled task as terminal failure for pending voice generation', () => {
+    const loadData = vi.fn(async () => undefined)
+    const setPendingVoiceGenerationByLineId = vi.fn()
+    const onTaskFailure = vi.fn()
+    const effectCallbacks: Array<() => void | (() => void)> = []
+
+    useEffectMock.mockImplementation((callback: () => void | (() => void)) => {
+      effectCallbacks.push(callback)
+    })
+
+    useVoiceRuntimeSync({
+      loadData,
+      voiceLines: [buildVoiceLine({
+        id: 'line-10',
+        lineIndex: 10,
+      })],
+      activeVoiceTaskLineIds: new Set(),
+      pendingVoiceGenerationByLineId: {
+        'line-10': {
+          submittedUpdatedAt: '2026-03-07T12:00:00.000Z',
+          startedAt: '2026-03-07T12:24:10.000Z',
+          taskId: 'task-canceled-1',
+          taskStatus: 'canceled',
+          taskErrorMessage: 'Task cancelled by user',
+        },
+      },
+      setPendingVoiceGenerationByLineId,
+      onTaskFailure,
+    })
+
+    const renderEffects = effectCallbacks.splice(0)
+    renderEffects[1]?.()
+
+    expect(onTaskFailure).toHaveBeenCalledWith({
+      lineId: 'line-10',
+      line: expect.objectContaining({
+        id: 'line-10',
+        lineIndex: 10,
+      }),
+      taskId: 'task-canceled-1',
+      errorMessage: 'Task cancelled by user',
+    })
+  })
 })

@@ -469,6 +469,20 @@ export async function tryMarkTaskFailed(taskId: string, errorCode: string, error
   return result.count > 0
 }
 
+export async function tryMarkTaskCanceled(taskId: string, errorCode: string, errorMessage: string) {
+  const result = await taskModel.updateMany({
+    where: activeTaskWhere(taskId),
+    data: {
+      status: TASK_STATUS.CANCELED,
+      errorCode: errorCode.slice(0, 80),
+      errorMessage: errorMessage.slice(0, 2000),
+      finishedAt: new Date(),
+      heartbeatAt: null,
+    },
+  })
+  return result.count > 0
+}
+
 export async function markTaskProcessing(taskId: string, externalId?: string | null) {
   return await tryMarkTaskProcessing(taskId, externalId)
 }
@@ -483,6 +497,10 @@ export async function markTaskCompleted(taskId: string, result?: Record<string, 
 
 export async function markTaskFailed(taskId: string, errorCode: string, errorMessage: string) {
   return await tryMarkTaskFailed(taskId, errorCode, errorMessage)
+}
+
+export async function markTaskCanceled(taskId: string, errorCode: string, errorMessage: string) {
+  return await tryMarkTaskCanceled(taskId, errorCode, errorMessage)
 }
 
 export async function cancelTask(taskId: string, reason = 'Task cancelled by user') {
@@ -514,7 +532,7 @@ export async function cancelTask(taskId: string, reason = 'Task cancelled by use
     }
 
   const failure = resolveCompensationFailure(rollbackResult, 'TASK_CANCELLED', reason)
-  const cancelled = await tryMarkTaskFailed(taskId, failure.errorCode, failure.errorMessage)
+  const cancelled = await tryMarkTaskCanceled(taskId, failure.errorCode, failure.errorMessage)
   const task = await taskModel.findUnique({ where: { id: taskId } })
   return {
     task,

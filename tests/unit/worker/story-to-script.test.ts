@@ -26,32 +26,17 @@ const configMock = vi.hoisted(() => ({
 const orchestratorMock = vi.hoisted(() => ({
   runStoryToScriptOrchestrator: vi.fn(),
 }))
-const graphExecutorMock = vi.hoisted(() => ({
-  executePipelineGraph: vi.fn(async (input: {
-    runId: string
-    projectId: string
-    userId: string
-    state: Record<string, unknown>
-    nodes: Array<{ key: string; run: (ctx: Record<string, unknown>) => Promise<unknown> }>
-  }) => {
-    for (const node of input.nodes) {
-      await node.run({
-        runId: input.runId,
-        projectId: input.projectId,
-        userId: input.userId,
-        nodeKey: node.key,
-        attempt: 1,
-        state: input.state,
-      })
-    }
-    return input.state
-  }),
-}))
-
 const helperMock = vi.hoisted(() => ({
   persistAnalyzedCharacters: vi.fn(async () => [{ id: 'character-new-1' }]),
   persistAnalyzedLocations: vi.fn(async () => [{ id: 'location-new-1' }]),
   persistClips: vi.fn(async () => [{ clipKey: 'clip-1', id: 'clip-row-1' }]),
+}))
+const workflowLeaseMock = vi.hoisted(() => ({
+  assertWorkflowRunActive: vi.fn(async () => undefined),
+  withWorkflowRunLease: vi.fn(async (params: { run: () => Promise<unknown> }) => ({
+    claimed: true,
+    result: await params.run(),
+  })),
 }))
 
 vi.mock('@/lib/prisma', () => ({ prisma: prismaMock }))
@@ -69,9 +54,6 @@ vi.mock('@/lib/logging/file-writer', () => ({ onProjectNameAvailable: vi.fn() })
 vi.mock('@/lib/workers/shared', () => ({ reportTaskProgress: workerMock.reportTaskProgress }))
 vi.mock('@/lib/workers/utils', () => ({ assertTaskActive: workerMock.assertTaskActive }))
 vi.mock('@/lib/novel-promotion/story-to-script/orchestrator', () => orchestratorMock)
-vi.mock('@/lib/run-runtime/graph-executor', () => ({
-  executePipelineGraph: graphExecutorMock.executePipelineGraph,
-}))
 vi.mock('@/lib/workers/handlers/llm-stream', () => ({
   createWorkerLLMStreamContext: vi.fn(() => ({ streamRunId: 'run-1', nextSeqByStepLane: {} })),
   createWorkerLLMStreamCallbacks: vi.fn(() => ({
@@ -100,6 +82,7 @@ vi.mock('@/lib/workers/handlers/story-to-script-helpers', () => ({
   persistClips: helperMock.persistClips,
   resolveClipRecordId: (clipIdMap: Map<string, string>, clipId: string) => clipIdMap.get(clipId) ?? null,
 }))
+vi.mock('@/lib/run-runtime/workflow-lease', () => workflowLeaseMock)
 
 import { handleStoryToScriptTask } from '@/lib/workers/handlers/story-to-script'
 

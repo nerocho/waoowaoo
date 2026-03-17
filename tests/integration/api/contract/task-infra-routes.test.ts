@@ -144,7 +144,7 @@ describe('api contract - task infra routes (behavior)', () => {
     cancelTaskMock.mockResolvedValue({
       task: {
         ...baseTask,
-        status: TASK_STATUS.FAILED,
+        status: TASK_STATUS.CANCELED,
         errorCode: 'TASK_CANCELLED',
         errorMessage: 'Task cancelled by user',
       },
@@ -336,8 +336,11 @@ describe('api contract - task infra routes (behavior)', () => {
     const req = buildMockRequest({ path: '/api/tasks/task-1', method: 'DELETE' })
     const res = await DELETE(req, { params: Promise.resolve({ taskId: 'task-1' }) } as RouteContext)
     expect(res.status).toBe(200)
+    const payload = await res.json() as { task: TaskRecord; cancelled: boolean }
 
     expect(removeTaskJobMock).toHaveBeenCalledWith('task-1')
+    expect(payload.cancelled).toBe(true)
+    expect(payload.task.status).toBe(TASK_STATUS.CANCELED)
     expect(publishTaskEventMock).toHaveBeenCalledWith(expect.objectContaining({
       taskId: 'task-1',
       projectId: 'project-1',

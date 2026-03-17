@@ -82,8 +82,10 @@ services:
       MINIO_ACCESS_KEY: "minioadmin"
       MINIO_SECRET_KEY: "minioadmin"
       MINIO_FORCE_PATH_STYLE: "true"
-      # 认证
-      NEXTAUTH_URL: "http://localhost:3000"
+      # 外部访问地址（浏览器实际访问）
+      NEXTAUTH_URL: "http://localhost:13000"
+      # 容器内自调用地址（服务端 fetch 自己的 API / 文件）
+      INTERNAL_APP_URL: "http://127.0.0.1:3000"
       NEXTAUTH_SECRET: "waoowaoo-default-secret-2026"
       # 内部密钥
       CRON_SECRET: "waoowaoo-docker-cron-secret"

@@ -16,6 +16,11 @@ export type WorkerInternalLLMStreamCallbacks = InternalLLMStreamCallbacks & {
   flush: () => Promise<void>
 }
 
+export type WorkerLLMActiveController = {
+  assertActive?: (stage: string) => Promise<void>
+  isActive?: () => Promise<boolean>
+}
+
 export function createWorkerLLMStreamContext(job: Job<TaskJobData>, label = 'worker'): WorkerLLMStreamContext {
   return {
     streamRunId: `run:${job.data.taskId}:${label}:${Date.now().toString(36)}:${Math.random().toString(36).slice(2, 8)}`,
@@ -33,6 +38,7 @@ function nextWorkerStreamSeq(streamContext: WorkerLLMStreamContext, stepId: stri
 export function createWorkerLLMStreamCallbacks(
   job: Job<TaskJobData>,
   streamContext: WorkerLLMStreamContext,
+  activeController?: WorkerLLMActiveController,
 ): WorkerInternalLLMStreamCallbacks {
   const maxChunkChars = 128
   const activeProbeIntervalMs = 600
@@ -54,13 +60,28 @@ export function createWorkerLLMStreamCallbacks(
     if (terminatedError) throw terminatedError
   }
 
+  const assertActive = async (stage: string) => {
+    if (activeController?.assertActive) {
+      await activeController.assertActive(stage)
+      return
+    }
+    await assertTaskActive(job, stage)
+  }
+
+  const probeActive = async () => {
+    if (activeController?.isActive) {
+      return await activeController.isActive()
+    }
+    return await isTaskActive(job.data.taskId)
+  }
+
   const scheduleActiveProbe = () => {
     if (terminatedError || checkingActive) return
     const now = Date.now()
     if (now - lastActiveProbeAt < activeProbeIntervalMs) return
     checkingActive = true
     lastActiveProbeAt = now
-    void isTaskActive(job.data.taskId)
+    void probeActive()
       .then((active) => {
         if (!active) {
           markTerminated('worker_llm_stream_probe')
@@ -78,7 +99,7 @@ export function createWorkerLLMStreamCallbacks(
       .catch(() => undefined)
       .then(async () => {
         ensureActiveOrThrow(stage)
-        await assertTaskActive(job, stage)
+        await assertActive(stage)
         await work()
       })
       .catch((error) => {

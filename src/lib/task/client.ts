@@ -1,7 +1,7 @@
 import { resolveTaskErrorMessage } from './error-message'
 import { apiFetch } from '@/lib/api-fetch'
 
-type TaskStatus = 'queued' | 'processing' | 'completed' | 'failed'
+type TaskStatus = 'queued' | 'processing' | 'completed' | 'failed' | 'canceled'
 
 type TaskSnapshot = {
   id: string
@@ -63,7 +63,7 @@ export async function waitForTaskResult(taskId: string, options: WaitTaskOptions
     if (task.status === 'completed') {
       return task.result || { success: true }
     }
-    if (task.status === 'failed') {
+    if (task.status === 'failed' || task.status === 'canceled') {
       throw new Error(resolveTaskErrorMessage(task, `Task ${task.status}`))
     }
     if (task.status !== 'queued' && task.status !== 'processing') {

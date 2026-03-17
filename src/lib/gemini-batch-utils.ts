@@ -10,6 +10,7 @@
  */
 
 import { GoogleGenAI } from '@google/genai'
+import { getInternalBaseUrl } from '@/lib/env'
 import { getImageBase64Cached } from './image-cache'
 import { logInternal } from './logging/semantic'
 
@@ -89,7 +90,7 @@ export async function submitGeminiBatch(
           // 🔧 本地模式修复：相对路径需要补全完整 URL
           let fullUrl = imageData
           if (imageData.startsWith('/')) {
-            const baseUrl = process.env.NEXTAUTH_URL || 'http://localhost:3000'
+            const baseUrl = getInternalBaseUrl()
             fullUrl = `${baseUrl}${imageData}`
           }
           const base64DataUrl = await getImageBase64Cached(fullUrl)

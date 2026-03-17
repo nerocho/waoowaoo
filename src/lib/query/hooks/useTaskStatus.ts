@@ -186,7 +186,9 @@ export function useTaskStatus(params: {
   const data = useMemo(() => {
     const tasks = query.data || []
     const latest = snapshotQuery.data || tasks[0] || null
-    const lastFailed = latest?.status === 'failed' ? (latest.error || null) : null
+    const lastFailed = latest?.status === 'failed' || latest?.status === 'canceled'
+      ? (latest.error || null)
+      : null
     return {
       active: tasks,
       hasActive: tasks.length > 0,

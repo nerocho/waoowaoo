@@ -1,5 +1,6 @@
 import { GoogleGenAI, HarmBlockThreshold, HarmCategory } from '@google/genai'
 import { getProviderConfig } from '@/lib/api-config'
+import { getInternalBaseUrl } from '@/lib/env'
 import { getImageBase64Cached } from '@/lib/image-cache'
 import { BaseImageGenerator, type GenerateResult, type ImageGenerateParams } from '../base'
 import { setProxy } from '../../../../lib/prompts/proxy'
@@ -16,7 +17,7 @@ type GeminiCompatibleOptions = {
 
 function toAbsoluteUrlIfNeeded(value: string): string {
   if (!value.startsWith('/')) return value
-  const baseUrl = process.env.NEXTAUTH_URL || 'http://localhost:3000'
+  const baseUrl = getInternalBaseUrl()
   return `${baseUrl}${value}`
 }
 

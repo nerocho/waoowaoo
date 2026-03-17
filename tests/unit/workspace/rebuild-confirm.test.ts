@@ -82,6 +82,32 @@ describe('useRebuildConfirm', () => {
 
     expect(action).toHaveBeenCalledTimes(1)
   })
+
+  it('story to script without downstream confirm clears pending action after action completes', async () => {
+    const getProjectStoryboardStats = vi.fn(async () => ({ storyboardCount: 0, panelCount: 0 }))
+    const action = vi.fn(async () => undefined)
+
+    const hook = useRebuildConfirm({
+      episodeId: 'episode-1',
+      episodeStoryboards: [],
+      getProjectStoryboardStats,
+      t: (key: string) => key,
+    })
+
+    await hook.runWithRebuildConfirm('storyToScript', action)
+
+    expect(action).toHaveBeenCalledTimes(1)
+    expect(setPendingActionTypeMock).toHaveBeenCalledTimes(2)
+    expect(setPendingActionTypeMock).toHaveBeenNthCalledWith(1, 'storyToScript')
+
+    const resetCall = setPendingActionTypeMock.mock.calls[1]?.[0]
+    expect(typeof resetCall).toBe('function')
+    if (typeof resetCall !== 'function') {
+      throw new Error('expected reset pending action updater')
+    }
+    expect(resetCall('storyToScript')).toBeNull()
+    expect(resetCall('scriptToStoryboard')).toBe('scriptToStoryboard')
+  })
 })
 
 describe('hasDownstreamStoryboardData', () => {

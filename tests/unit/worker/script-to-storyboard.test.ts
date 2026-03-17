@@ -47,32 +47,17 @@ const runScriptToStoryboardOrchestratorMock = vi.hoisted(() =>
     },
   })),
 )
-const graphExecutorMock = vi.hoisted(() => ({
-  executePipelineGraph: vi.fn(async (input: {
-    runId: string
-    projectId: string
-    userId: string
-    state: Record<string, unknown>
-    nodes: Array<{ key: string; run: (ctx: Record<string, unknown>) => Promise<unknown> }>
-  }) => {
-    for (const node of input.nodes) {
-      await node.run({
-        runId: input.runId,
-        projectId: input.projectId,
-        userId: input.userId,
-        nodeKey: node.key,
-        attempt: 1,
-        state: input.state,
-      })
-    }
-    return input.state
-  }),
-}))
-
 const parseVoiceLinesJsonMock = vi.hoisted(() => vi.fn())
 const persistStoryboardsAndPanelsMock = vi.hoisted(() => vi.fn())
 const parseStoryboardRetryTargetMock = vi.hoisted(() => vi.fn())
 const runScriptToStoryboardAtomicRetryMock = vi.hoisted(() => vi.fn())
+const workflowLeaseMock = vi.hoisted(() => ({
+  assertWorkflowRunActive: vi.fn(async () => undefined),
+  withWorkflowRunLease: vi.fn(async (params: { run: () => Promise<unknown> }) => ({
+    claimed: true,
+    result: await params.run(),
+  })),
+}))
 
 const txState = vi.hoisted(() => ({
   createdRows: [] as Array<Record<string, unknown>>,
@@ -145,10 +130,6 @@ vi.mock('@/lib/novel-promotion/script-to-storyboard/orchestrator', () => ({
     }
   },
 }))
-vi.mock('@/lib/run-runtime/graph-executor', () => ({
-  executePipelineGraph: graphExecutorMock.executePipelineGraph,
-}))
-
 vi.mock('@/lib/workers/handlers/llm-stream', () => ({
   createWorkerLLMStreamContext: vi.fn(() => ({ streamRunId: 'run-1', nextSeqByStepLane: {} })),
   createWorkerLLMStreamCallbacks: vi.fn(() => ({
@@ -192,6 +173,7 @@ vi.mock('@/lib/workers/handlers/script-to-storyboard-atomic-retry', () => ({
   parseStoryboardRetryTarget: parseStoryboardRetryTargetMock,
   runScriptToStoryboardAtomicRetry: runScriptToStoryboardAtomicRetryMock,
 }))
+vi.mock('@/lib/run-runtime/workflow-lease', () => workflowLeaseMock)
 
 import { handleScriptToStoryboardTask } from '@/lib/workers/handlers/script-to-storyboard'
 

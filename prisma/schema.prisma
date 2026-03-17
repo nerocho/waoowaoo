@@ -658,6 +658,10 @@ model GraphRun {
   errorCode         String?
   errorMessage      String?            @db.Text
   cancelRequestedAt DateTime?
+  leaseOwner        String?
+  leaseExpiresAt    DateTime?
+  heartbeatAt       DateTime?
+  workflowVersion   Int                @default(1)
   queuedAt          DateTime           @default(now())
   startedAt         DateTime?
   finishedAt        DateTime?
@@ -675,6 +679,8 @@ model GraphRun {
   @@index([userId, createdAt])
   @@index([taskId])
   @@index([targetType, targetId])
+  @@index([workflowType, targetType, targetId, status])
+  @@index([leaseExpiresAt])
   @@map("graph_runs")
 }
 

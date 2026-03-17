@@ -91,7 +91,11 @@ export function useRebuildConfirm({
     try {
       const downstream = await checkStoryboardDownstreamData()
       if (!downstream.shouldConfirm) {
-        await action()
+        try {
+          await action()
+        } finally {
+          setPendingActionType((current) => (current === actionType ? null : current))
+        }
         return
       }
 

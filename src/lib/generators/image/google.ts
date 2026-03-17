@@ -9,6 +9,7 @@ import { logInfo as _ulogInfo, logWarn as _ulogWarn } from '@/lib/logging/core'
  */
 
 import { GoogleGenAI, HarmCategory, HarmBlockThreshold } from '@google/genai'
+import { getInternalBaseUrl } from '@/lib/env'
 import { BaseImageGenerator, ImageGenerateParams, GenerateResult } from '../base'
 import { getProviderConfig } from '@/lib/api-config'
 import { getImageBase64Cached } from '@/lib/image-cache'
@@ -94,7 +95,7 @@ export class GoogleGeminiImageGenerator extends BaseImageGenerator {
                     // 🔧 本地模式修复：相对路径需要补全完整 URL
                     let fullUrl = imageData
                     if (imageData.startsWith('/')) {
-                        const baseUrl = process.env.NEXTAUTH_URL || 'http://localhost:3000'
+                        const baseUrl = getInternalBaseUrl()
                         fullUrl = `${baseUrl}${imageData}`
                     }
                     const base64DataUrl = await getImageBase64Cached(fullUrl)

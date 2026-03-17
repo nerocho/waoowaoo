@@ -1,9 +1,10 @@
 import { StorageConfigError } from './errors'
+import { getInternalBaseUrl } from '@/lib/env'
 
 export const DEFAULT_SIGNED_URL_EXPIRES_SECONDS = 24 * 60 * 60
 
 export function resolveBaseUrl(): string {
-  return process.env.NEXTAUTH_URL || 'http://localhost:3000'
+  return getInternalBaseUrl()
 }
 
 export function toFetchableUrl(inputUrl: string): string {
