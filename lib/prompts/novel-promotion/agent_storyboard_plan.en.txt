@@ -16,6 +16,9 @@ Character appearance list:
 Character full descriptions:
 {characters_full_description}
 
+Prop descriptions:
+{props_description}
+
 Clip metadata JSON:
 {clip_json}
 

@@ -9,6 +9,7 @@ import { AppIcon } from '@/components/ui/icons'
 import UpdateNoticeModal from './UpdateNoticeModal'
 import { useGithubReleaseUpdate } from '@/hooks/common/useGithubReleaseUpdate'
 import { Link } from '@/i18n/navigation'
+import { buildAuthenticatedHomeTarget } from '@/lib/home/default-route'
 
 
 export default function Navbar() {
@@ -41,7 +42,7 @@ export default function Navbar() {
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex justify-between items-center h-16">
             <div className="flex items-center gap-2">
-              <Link href={{ pathname: session ? '/workspace' : '/' }} className="group">
+              <Link href={session ? buildAuthenticatedHomeTarget() : { pathname: '/' }} className="group">
                 <Image
                   src="/logo-small.png?v=1"
                   alt={tc('appName')}

@@ -125,6 +125,7 @@
   "streamStep": {
     "analyzeCharacters": "角色分析",
     "analyzeLocations": "场景分析",
+    "analyzeProps": "道具分析",
     "splitClips": "片段切分",
     "screenplayConversion": "剧本转换",
     "storyboardPlan": "分镜规划",

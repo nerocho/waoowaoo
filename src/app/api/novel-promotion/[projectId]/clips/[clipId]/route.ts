@@ -6,7 +6,7 @@ import { apiHandler } from '@/lib/api-errors'
 /**
  * PATCH /api/novel-promotion/[projectId]/clips/[clipId]
  * 更新单个 Clip 的信息
- * 支持更新：characters, location, content, screenplay
+ * 支持更新：characters, location, props, content, screenplay
  */
 export const PATCH = apiHandler(async (
     request: NextRequest,
@@ -19,7 +19,10 @@ export const PATCH = apiHandler(async (
     if (isErrorResponse(authResult)) return authResult
 
     const body = await request.json()
-    const { characters, location, content, screenplay } = body
+    const { characters, location, props, content, screenplay } = body
+    const clipModel = prisma.novelPromotionClip as unknown as {
+        update: (args: { where: { id: string }; data: Record<string, unknown> }) => Promise<unknown>
+    }
 
     // 验证 Clip 是否存在且属于该项目（间接验证）
     // 这里简化处理，直接通过 ID 更新，Prisma 会处理是否存在
@@ -28,15 +31,17 @@ export const PATCH = apiHandler(async (
     const updateData: {
         characters?: string | null
         location?: string | null
+        props?: string | null
         content?: string
         screenplay?: string | null
     } = {}
     if (characters !== undefined) updateData.characters = characters // JSON string
     if (location !== undefined) updateData.location = location
+    if (props !== undefined) updateData.props = props
     if (content !== undefined) updateData.content = content
     if (screenplay !== undefined) updateData.screenplay = screenplay // JSON string
 
-    const clip = await prisma.novelPromotionClip.update({
+    const clip = await clipModel.update({
         where: { id: clipId },
         data: updateData
     })

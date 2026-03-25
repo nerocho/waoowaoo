@@ -16,14 +16,21 @@ import { useTranslations } from 'next-intl'
 
 import { useState, useCallback, useMemo } from 'react'
 // 移除了 useRouter 导入，因为不再需要在组件中操作 URL
-import { Character, CharacterAppearance } from '@/types/project'
+import { Character, CharacterAppearance, NovelPromotionClip } from '@/types/project'
 import { resolveTaskPresentationState } from '@/lib/task/presentation'
 import {
+  useAssetActions,
   useGenerateProjectCharacterImage,
   useGenerateProjectLocationImage,
-  useProjectAssets,
+  useAssets,
   useRefreshProjectAssets,
+  useEpisodes,
+  useEpisodeData,
 } from '@/lib/query/hooks'
+import {
+  getAllClipsAssets,
+  fuzzyMatchLocation,
+} from './script-view/clip-asset-utils'
 
 // Hooks
 import { useCharacterActions } from './assets/hooks/useCharacterActions'
@@ -40,8 +47,8 @@ import { useAssetsImageEdit } from './assets/hooks/useAssetsImageEdit'
 import CharacterSection from './assets/CharacterSection'
 import LocationSection from './assets/LocationSection'
 import AssetToolbar from './assets/AssetToolbar'
+import AssetFilterBar, { type AssetKindFilter } from './assets/AssetFilterBar'
 import AssetsStageStatusOverlays from './assets/AssetsStageStatusOverlays'
-import UnconfirmedProfilesSection from './assets/UnconfirmedProfilesSection'
 import AssetsStageModals from './assets/AssetsStageModals'
 
 interface AssetsStageProps {
@@ -62,11 +69,27 @@ export default function AssetsStage({
   triggerGlobalAnalyze = false,
   onGlobalAnalyzeComplete
 }: AssetsStageProps) {
-  // 🔥 V6.5 重构：直接订阅缓存，消除 props drilling
-  const { data: assets } = useProjectAssets(projectId)
-  // 🔧 使用 useMemo 稳定引用，防止 useCallback/useEffect 依赖问题
-  const characters = useMemo(() => assets?.characters ?? [], [assets?.characters])
-  const locations = useMemo(() => assets?.locations ?? [], [assets?.locations])
+  const { data: assets = [] } = useAssets({
+    scope: 'project',
+    projectId,
+  })
+  const characters = useMemo(
+    () => assets.filter((asset) => asset.kind === 'character'),
+    [assets],
+  )
+  const locations = useMemo(
+    () => assets.filter((asset) => asset.kind === 'location'),
+    [assets],
+  )
+  const props = useMemo(
+    () => assets.filter((asset) => asset.kind === 'prop'),
+    [assets],
+  )
+  const propAssetActions = useAssetActions({
+    scope: 'project',
+    projectId,
+    kind: 'prop',
+  })
   // 🔥 使用 React Query 刷新，替代 onRefresh prop
   const refreshAssets = useRefreshProjectAssets(projectId)
   const onRefresh = useCallback(() => { refreshAssets() }, [refreshAssets])
@@ -77,7 +100,7 @@ export default function AssetsStage({
 
   // 🔥 内部图片生成函数 - 使用 mutation hooks 实现乐观更新
   const handleGenerateImage = useCallback(async (
-    type: 'character' | 'location',
+    type: 'character' | 'location' | 'prop',
     id: string,
     appearanceId?: string,
     count?: number,
@@ -86,18 +109,84 @@ export default function AssetsStage({
       await generateCharacterImage.mutateAsync({ characterId: id, appearanceId, count })
     } else if (type === 'location') {
       await generateLocationImage.mutateAsync({ locationId: id, count })
+    } else if (type === 'prop') {
+      await propAssetActions.generate({ id, count })
     }
-  }, [generateCharacterImage, generateLocationImage])
+  }, [generateCharacterImage, generateLocationImage, propAssetActions])
 
   const t = useTranslations('assets')
   // 计算资产总数
-  const totalAppearances = characters.reduce((sum, char) => sum + (char.appearances?.length || 0), 0)
+  const totalAppearances = characters.reduce((sum, character) => sum + character.variants.length, 0)
   const totalLocations = locations.length
-  const totalAssets = totalAppearances + totalLocations
+  const totalProps = props.length
+  const totalAssets = totalAppearances + totalLocations + totalProps
 
   // 本地 UI 状态
   const [previewImage, setPreviewImage] = useState<string | null>(null)
   const [toast, setToast] = useState<{ message: string; type: 'success' | 'warning' | 'error' } | null>(null)
+  const [kindFilter, setKindFilter] = useState<AssetKindFilter>('all')
+  const [episodeFilter, setEpisodeFilter] = useState<string | null>(null)
+
+  // 获取剧集列表
+  const { episodes } = useEpisodes(projectId)
+  const episodeOptions = useMemo(
+    () => episodes.map((ep) => ({ id: ep.id, episodeNumber: ep.episodeNumber, name: ep.name })),
+    [episodes],
+  )
+
+  // 分集筛选：获取选中集的 clips，解析出该集的资产名称
+  const { data: episodeData } = useEpisodeData(projectId, episodeFilter)
+  const episodeClips = useMemo(() => {
+    if (!episodeFilter || !episodeData) return null
+    return ((episodeData as { clips?: NovelPromotionClip[] }).clips) ?? null
+  }, [episodeFilter, episodeData])
+
+  // 按分集筛选资产 ID 集合
+  const episodeAssetIds = useMemo(() => {
+    if (!episodeClips) return null // null 表示不筛选
+    const { allCharNames, allLocNames, allPropNames } = getAllClipsAssets(episodeClips)
+
+    const charIds = new Set(
+      characters
+        .filter((c) => {
+          const aliases = c.name.split('/').map((a) => a.trim())
+          return aliases.some((alias) => allCharNames.has(alias)) || allCharNames.has(c.name)
+        })
+        .map((c) => c.id),
+    )
+    const locIds = new Set(
+      locations
+        .filter((l) => Array.from(allLocNames).some((clipLocName) => fuzzyMatchLocation(clipLocName, l.name)))
+        .map((l) => l.id),
+    )
+    const propIds = new Set(
+      props
+        .filter((p) => Array.from(allPropNames).some((clipPropName) => clipPropName.toLowerCase() === p.name.toLowerCase()))
+        .map((p) => p.id),
+    )
+
+    return { charIds, locIds, propIds }
+  }, [episodeClips, characters, locations, props])
+
+  // 最终展示的资产列表（先按分集、再按类型筛选）
+  const filteredCharacters = useMemo(
+    () => episodeAssetIds ? characters.filter((c) => episodeAssetIds.charIds.has(c.id)) : characters,
+    [characters, episodeAssetIds],
+  )
+  const filteredLocations = useMemo(
+    () => episodeAssetIds ? locations.filter((l) => episodeAssetIds.locIds.has(l.id)) : locations,
+    [locations, episodeAssetIds],
+  )
+  const filteredProps = useMemo(
+    () => episodeAssetIds ? props.filter((p) => episodeAssetIds.propIds.has(p.id)) : props,
+    [props, episodeAssetIds],
+  )
+
+  // 筛选后的计数
+  const filteredAppearances = filteredCharacters.reduce((sum, character) => sum + character.variants.length, 0)
+  const filteredLocCount = filteredLocations.length
+  const filteredPropCount = filteredProps.length
+  const filteredTotal = filteredAppearances + filteredLocCount + filteredPropCount
 
   // 辅助：获取角色形象
   const getAppearances = (character: Character): CharacterAppearance[] => {
@@ -117,12 +206,9 @@ export default function AssetsStage({
   // 批量生成
   const {
     isBatchSubmitting,
-    batchProgress,
     activeTaskKeys,
     registerTransientTaskKey,
     clearTransientTaskKey,
-    handleGenerateAllImages,
-    handleRegenerateAllImages
   } = useBatchGeneration({
     projectId,
     handleGenerateImage
@@ -146,6 +232,7 @@ export default function AssetsStage({
     isGlobalCopyInFlight,
     handleCopyFromGlobal,
     handleCopyLocationFromGlobal,
+    handleCopyPropFromGlobal,
     handleVoiceSelectFromHub,
     handleConfirmCopyFromGlobal,
     handleCloseCopyPicker,
@@ -179,6 +266,17 @@ export default function AssetsStage({
     projectId,
     showToast
   })
+  const {
+    handleDeleteLocation: handleDeleteProp,
+    handleSelectLocationImage: handleSelectPropImage,
+    handleConfirmLocationSelection: handleConfirmPropSelection,
+    handleRegenerateSingleLocation: handleRegenerateSingleProp,
+    handleRegenerateLocationGroup: handleRegeneratePropGroup,
+  } = useLocationActions({
+    projectId,
+    assetType: 'prop',
+    showToast,
+  })
 
   // TTS/音色
   const {
@@ -195,20 +293,26 @@ export default function AssetsStage({
   const {
     editingAppearance,
     editingLocation,
+    editingProp,
     showAddCharacter,
     showAddLocation,
+    showAddProp,
     imageEditModal,
     characterImageEditModal,
     setShowAddCharacter,
     setShowAddLocation,
+    setShowAddProp,
     handleEditAppearance,
     handleEditLocation,
+    handleEditProp,
     handleOpenLocationImageEdit,
     handleOpenCharacterImageEdit,
     closeEditingAppearance,
     closeEditingLocation,
+    closeEditingProp,
     closeAddCharacter,
     closeAddLocation,
+    closeAddProp,
     closeImageEditModal,
     closeCharacterImageEditModal
   } = useAssetModals({
@@ -279,78 +383,116 @@ export default function AssetsStage({
         totalAssets={totalAssets}
         totalAppearances={totalAppearances}
         totalLocations={totalLocations}
+        totalProps={totalProps}
         isBatchSubmitting={isBatchSubmitting}
         isAnalyzingAssets={isAnalyzingAssets}
         isGlobalAnalyzing={isGlobalAnalyzing}
-        batchProgress={batchProgress}
-        onGenerateAll={handleGenerateAllImages}
-        onRegenerateAll={handleRegenerateAllImages}
         onGlobalAnalyze={handleGlobalAnalyze}
+        episodeId={episodeFilter}
+        onEpisodeChange={setEpisodeFilter}
+        episodes={episodeOptions}
       />
 
-      <UnconfirmedProfilesSection
-        unconfirmedCharacters={unconfirmedCharacters}
-        confirmTitle={t('stage.confirmProfiles')}
-        confirmHint={t('stage.confirmHint')}
-        confirmAllLabel={t('stage.confirmAll', { count: unconfirmedCharacters.length })}
-        batchConfirming={batchConfirming}
-        batchConfirmingState={batchConfirmingState}
-        deletingCharacterId={deletingCharacterId}
-        isConfirmingCharacter={isConfirmingCharacter}
-        onBatchConfirm={handleBatchConfirm}
-        onEditProfile={handleEditProfile}
-        onConfirmProfile={handleConfirmProfile}
-        onUseExistingProfile={handleCopyFromGlobal}
-        onDeleteProfile={handleDeleteProfile}
+      {/* 资产筛选栏 */}
+      <AssetFilterBar
+        kindFilter={kindFilter}
+        onKindFilterChange={setKindFilter}
+        counts={{
+          all: filteredTotal,
+          character: filteredAppearances,
+          location: filteredLocCount,
+          prop: filteredPropCount,
+        }}
       />
 
-      {/* 角色资产区块 */}
-      <CharacterSection
-        projectId={projectId}
-        focusCharacterId={focusCharacterId}
-        focusCharacterRequestId={focusCharacterRequestId}
-        activeTaskKeys={activeTaskKeys}
-        onClearTaskKey={clearTransientTaskKey}
-        onRegisterTransientTaskKey={registerTransientTaskKey}
-        isAnalyzingAssets={isAnalyzingAssets}
-        onAddCharacter={() => setShowAddCharacter(true)}
-        onDeleteCharacter={handleDeleteCharacter}
-        onDeleteAppearance={handleDeleteAppearance}
-        onEditAppearance={handleEditAppearance}
-        handleGenerateImage={handleGenerateImage}
-        onSelectImage={handleSelectCharacterImage}
-        onConfirmSelection={handleConfirmSelection}
-        onRegenerateSingle={handleRegenerateSingleCharacter}
-        onRegenerateGroup={handleRegenerateCharacterGroup}
-        onUndo={handleUndoCharacter}
-        onImageClick={setPreviewImage}
-        onImageEdit={(charId, appIdx, imgIdx, name) => handleOpenCharacterImageEdit(charId, appIdx, imgIdx, name)}
-        onVoiceChange={(characterId, customVoiceUrl) => handleVoiceChange(characterId, 'custom', characterId, customVoiceUrl)}
-        onVoiceDesign={handleOpenVoiceDesign}
-        onVoiceSelectFromHub={handleVoiceSelectFromHub}
-        onCopyFromGlobal={handleCopyFromGlobal}
-        getAppearances={getAppearances}
-      />
-
-      {/* 场景资产区块 */}
-      <LocationSection
-        projectId={projectId}
-        activeTaskKeys={activeTaskKeys}
-        onClearTaskKey={clearTransientTaskKey}
-        onRegisterTransientTaskKey={registerTransientTaskKey}
-        onAddLocation={() => setShowAddLocation(true)}
-        onDeleteLocation={handleDeleteLocation}
-        onEditLocation={handleEditLocation}
-        handleGenerateImage={handleGenerateImage}
-        onSelectImage={handleSelectLocationImage}
-        onConfirmSelection={handleConfirmLocationSelection}
-        onRegenerateSingle={handleRegenerateSingleLocation}
-        onRegenerateGroup={handleRegenerateLocationGroup}
-        onUndo={handleUndoLocation}
-        onImageClick={setPreviewImage}
-        onImageEdit={(locId, imgIdx) => handleOpenLocationImageEdit(locId, imgIdx)}
-        onCopyFromGlobal={handleCopyLocationFromGlobal}
-      />
+      {(kindFilter === 'all' || kindFilter === 'character') && (
+          <CharacterSection
+            key="character"
+            projectId={projectId}
+            focusCharacterId={focusCharacterId}
+            focusCharacterRequestId={focusCharacterRequestId}
+            activeTaskKeys={activeTaskKeys}
+            onClearTaskKey={clearTransientTaskKey}
+            onRegisterTransientTaskKey={registerTransientTaskKey}
+            isAnalyzingAssets={isAnalyzingAssets}
+            onAddCharacter={() => setShowAddCharacter(true)}
+            onDeleteCharacter={handleDeleteCharacter}
+            onDeleteAppearance={handleDeleteAppearance}
+            onEditAppearance={handleEditAppearance}
+            handleGenerateImage={handleGenerateImage}
+            onSelectImage={handleSelectCharacterImage}
+            onConfirmSelection={handleConfirmSelection}
+            onRegenerateSingle={handleRegenerateSingleCharacter}
+            onRegenerateGroup={handleRegenerateCharacterGroup}
+            onUndo={handleUndoCharacter}
+            onImageClick={setPreviewImage}
+            onImageEdit={(charId, appIdx, imgIdx, name) => handleOpenCharacterImageEdit(charId, appIdx, imgIdx, name)}
+            onVoiceChange={(characterId, customVoiceUrl) => handleVoiceChange(characterId, 'custom', characterId, customVoiceUrl)}
+            onVoiceDesign={handleOpenVoiceDesign}
+            onVoiceSelectFromHub={handleVoiceSelectFromHub}
+            onCopyFromGlobal={handleCopyFromGlobal}
+            getAppearances={getAppearances}
+            filterIds={episodeAssetIds?.charIds ?? null}
+            // 🔥 V7：待确认角色档案内嵌到 CharacterSection
+            unconfirmedCharacters={unconfirmedCharacters}
+            isConfirmingCharacter={isConfirmingCharacter}
+            deletingCharacterId={deletingCharacterId}
+            batchConfirming={batchConfirming}
+            batchConfirmingState={batchConfirmingState}
+            onBatchConfirm={handleBatchConfirm}
+            onEditProfile={handleEditProfile}
+            onConfirmProfile={handleConfirmProfile}
+            onUseExistingProfile={handleCopyFromGlobal}
+            onDeleteProfile={handleDeleteProfile}
+          />
+      )}
+      {(kindFilter === 'all' || kindFilter === 'location') && (
+          <LocationSection
+            key="location"
+            projectId={projectId}
+            activeTaskKeys={activeTaskKeys}
+            onClearTaskKey={clearTransientTaskKey}
+            onRegisterTransientTaskKey={registerTransientTaskKey}
+            onAddLocation={() => setShowAddLocation(true)}
+            onDeleteLocation={handleDeleteLocation}
+            onEditLocation={handleEditLocation}
+            handleGenerateImage={handleGenerateImage}
+            onSelectImage={handleSelectLocationImage}
+            onConfirmSelection={handleConfirmLocationSelection}
+            onRegenerateSingle={handleRegenerateSingleLocation}
+            onRegenerateGroup={handleRegenerateLocationGroup}
+            onUndo={handleUndoLocation}
+            onImageClick={setPreviewImage}
+            onImageEdit={(locId, imgIdx) => handleOpenLocationImageEdit(locId, imgIdx)}
+            onCopyFromGlobal={handleCopyLocationFromGlobal}
+            filterIds={episodeAssetIds?.locIds ?? null}
+          />
+      )}
+      {(kindFilter === 'all' || kindFilter === 'prop') && (
+          <LocationSection
+            key="prop"
+            projectId={projectId}
+            assetType="prop"
+            activeTaskKeys={activeTaskKeys}
+            onClearTaskKey={clearTransientTaskKey}
+            onRegisterTransientTaskKey={registerTransientTaskKey}
+            onAddLocation={() => setShowAddProp(true)}
+            onDeleteLocation={handleDeleteProp}
+            onEditLocation={handleEditProp}
+            handleGenerateImage={handleGenerateImage}
+            onSelectImage={handleSelectPropImage}
+            onConfirmSelection={handleConfirmPropSelection}
+            onRegenerateSingle={handleRegenerateSingleProp}
+            onRegenerateGroup={handleRegeneratePropGroup}
+            onUndo={(propId) => {
+              void propAssetActions.revertRender({ id: propId }).catch(() => undefined)
+            }}
+            onImageClick={setPreviewImage}
+            onImageEdit={() => undefined}
+            onCopyFromGlobal={handleCopyPropFromGlobal}
+            filterIds={episodeAssetIds?.propIds ?? null}
+          />
+      )}
 
       <AssetsStageModals
         projectId={projectId}
@@ -368,8 +510,10 @@ export default function AssetsStage({
         handleConfirmProfile={handleConfirmProfile}
         closeEditingAppearance={closeEditingAppearance}
         closeEditingLocation={closeEditingLocation}
+        closeEditingProp={closeEditingProp}
         closeAddCharacter={closeAddCharacter}
         closeAddLocation={closeAddLocation}
+        closeAddProp={closeAddProp}
         closeImageEditModal={closeImageEditModal}
         closeCharacterImageEditModal={closeCharacterImageEditModal}
         isConfirmingCharacter={isConfirmingCharacter}
@@ -379,8 +523,10 @@ export default function AssetsStage({
         characterImageEditModal={characterImageEditModal}
         editingAppearance={editingAppearance}
         editingLocation={editingLocation}
+        editingProp={editingProp}
         showAddCharacter={showAddCharacter}
         showAddLocation={showAddLocation}
+        showAddProp={showAddProp}
         voiceDesignCharacter={voiceDesignCharacter}
         editingProfile={editingProfile}
         copyFromGlobalTarget={copyFromGlobalTarget}

@@ -16,16 +16,22 @@ import {
   getFilteredFullDescription,
   getFilteredLocationsDescription,
   type LocationAsset,
+  type PropAsset,
   type PhotographyRule,
   type StoryboardPanel,
 } from '@/lib/storyboard-phases'
 import type { ClipPanelsResult, JsonRecord } from './script-to-storyboard-helpers'
+import {
+  buildPromptAssetContext,
+  compileAssetPromptFragments,
+} from '@/lib/assets/services/asset-prompt-context'
 
 type StoryboardClipInput = {
   id: string
   content: string | null
   characters: string | null
   location: string | null
+  props?: string | null
   screenplay: string | null
 }
 
@@ -86,6 +92,19 @@ function parseScreenplay(raw: string | null): unknown {
     return JSON.parse(raw)
   } catch (error) {
     throw new Error(`Invalid clip screenplay JSON: ${error instanceof Error ? error.message : String(error)}`)
+  }
+}
+
+function parseClipProps(raw: string | null): string[] {
+  if (!raw) return []
+  try {
+    const parsed = JSON.parse(raw)
+    if (!Array.isArray(parsed)) {
+      throw new Error('props field must be JSON array')
+    }
+    return parsed.map((item) => (typeof item === 'string' ? item.trim() : '')).filter(Boolean)
+  } catch (error) {
+    throw new Error(`Invalid clip props JSON: ${error instanceof Error ? error.message : String(error)}`)
   }
 }
 
@@ -321,17 +340,27 @@ export async function runScriptToStoryboardAtomicRetry(params: {
   novelPromotionData: {
     characters: CharacterAsset[]
     locations: LocationAsset[]
+    props?: PropAsset[]
   }
   promptTemplates: ScriptToStoryboardPromptTemplates
   runStep: StepRunner
 }): Promise<ScriptToStoryboardAtomicRetryResult> {
   const clipCharacters = parseClipCharacters(params.clip.characters)
   const clipLocation = params.clip.location || null
+  const clipProps = parseClipProps(params.clip.props ?? null)
   const filteredFullDescription = getFilteredFullDescription(params.novelPromotionData.characters || [], clipCharacters)
   const filteredLocationsDescription = getFilteredLocationsDescription(
     params.novelPromotionData.locations || [],
     clipLocation,
   )
+  const filteredPropsDescription = compileAssetPromptFragments(buildPromptAssetContext({
+    characters: [],
+    locations: [],
+    props: params.novelPromotionData.props || [],
+    clipCharacters: [],
+    clipLocation: null,
+    clipProps,
+  })).propsDescriptionText
   const baseMeta = buildStepMeta({
     target: params.retryTarget,
     clipIndex: params.clipIndex,
@@ -384,6 +413,7 @@ export async function runScriptToStoryboardAtomicRetry(params: {
         content: clipContent,
         characters: clipCharacters,
         location: clipLocation,
+        props: clipProps,
       },
       null,
       2,
@@ -394,6 +424,7 @@ export async function runScriptToStoryboardAtomicRetry(params: {
       .replace('{characters_introduction}', charactersIntroduction)
       .replace('{characters_appearance_list}', filteredAppearanceList)
       .replace('{characters_full_description}', filteredFullDescription)
+      .replace('{props_description}', filteredPropsDescription)
       .replace('{clip_json}', clipJson)
     const screenplay = parseScreenplay(params.clip.screenplay)
     if (screenplay) {
@@ -424,6 +455,7 @@ export async function runScriptToStoryboardAtomicRetry(params: {
       .replace(/\{panel_count\}/g, String(planPanels.length))
       .replace('{locations_description}', filteredLocationsDescription)
       .replace('{characters_info}', filteredFullDescription)
+      .replace('{props_description}', filteredPropsDescription)
     phase2Cinematography = await runStepWithRetry({
       runStep: params.runStep,
       baseMeta,
@@ -456,6 +488,7 @@ export async function runScriptToStoryboardAtomicRetry(params: {
       .replace('{panels_json}', JSON.stringify(planPanels, null, 2))
       .replace('{characters_age_gender}', filteredFullDescription)
       .replace('{locations_description}', filteredLocationsDescription)
+      .replace('{props_description}', filteredPropsDescription)
     phase3Panels = await runStepWithRetry({
       runStep: params.runStep,
       baseMeta,

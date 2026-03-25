@@ -1,6 +1,6 @@
 'use client'
 
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { logInfo as _ulogInfo, logWarn as _ulogWarn, logError as _ulogError } from '@/lib/logging/core'
 import { detectEpisodeMarkers, type EpisodeMarkerResult } from '@/lib/episode-marker-detector'
 import { countWords } from '@/lib/word-count'
@@ -20,12 +20,14 @@ interface UseWizardStateParams {
   importStatus?: string | null
   onImportComplete: (episodes: SplitEpisode[], triggerGlobalAnalysis?: boolean) => void
   t: Translate
+  /** 预填文本：传入后自动设置并触发分析 */
+  initialRawContent?: string
 }
 
-export function useWizardState({ projectId, importStatus, onImportComplete, t }: UseWizardStateParams) {
+export function useWizardState({ projectId, importStatus, onImportComplete, t, initialRawContent }: UseWizardStateParams) {
   const initialStage: WizardStage = importStatus === 'pending' ? 'preview' : 'select'
   const [stage, setStage] = useState<WizardStage>(initialStage)
-  const [rawContent, setRawContent] = useState('')
+  const [rawContent, setRawContent] = useState(initialRawContent || '')
   const [episodes, setEpisodes] = useState<SplitEpisode[]>([])
   const [selectedEpisode, setSelectedEpisode] = useState(0)
   const [error, setError] = useState<string | null>(null)
@@ -63,6 +65,7 @@ export function useWizardState({ projectId, importStatus, onImportComplete, t }:
       void loadSavedEpisodes()
     }
   }, [episodes.length, importStatus, loadSavedEpisodes])
+
 
   const performAISplit = useCallback(async () => {
     setShowMarkerConfirm(false)
@@ -130,6 +133,16 @@ export function useWizardState({ projectId, importStatus, onImportComplete, t }:
     _ulogInfo('[SmartImport] 未检测到标记，将使用 AI 分析')
     await performAISplit()
   }, [performAISplit, projectId, rawContent, t])
+
+  // 当预填文本存在时，自动触发分析（跳过选择页面）
+  const autoAnalyzeTriggered = useRef(false)
+  useEffect(() => {
+    if (initialRawContent && !autoAnalyzeTriggered.current && stage === 'select') {
+      autoAnalyzeTriggered.current = true
+      void handleAnalyze()
+    }
+  }) // eslint-disable-line react-hooks/exhaustive-deps
+
 
   const handleMarkerSplit = useCallback(async () => {
     if (!markerResult) return

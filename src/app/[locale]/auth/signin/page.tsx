@@ -5,6 +5,7 @@ import { signIn } from "next-auth/react"
 import { useTranslations } from 'next-intl'
 import Navbar from "@/components/Navbar"
 import { Link, useRouter } from '@/i18n/navigation'
+import { buildAuthenticatedHomeTarget } from '@/lib/home/default-route'
 
 export default function SignIn() {
   const [username, setUsername] = useState("")
@@ -31,7 +32,7 @@ export default function SignIn() {
       } else if (result?.error) {
         setError(t('loginFailed'))
       } else {
-        router.push({ pathname: '/' })
+        router.push(buildAuthenticatedHomeTarget())
         router.refresh()
       }
     } catch {

@@ -2,10 +2,34 @@
  * 统一的 Query Keys 定义
  * 所有缓存 key 在此集中管理，避免不一致
  */
+const globalAssetsRoot = () => ['global-assets'] as const
+const projectAssetsRoot = (projectId: string) => ['project-assets', projectId] as const
+const unifiedAssetsRoot = (
+    scope: 'global' | 'project',
+    projectId?: string | null,
+) => scope === 'global'
+    ? [...globalAssetsRoot(), 'unified'] as const
+    : [...projectAssetsRoot(projectId ?? ''), 'unified'] as const
+
 export const queryKeys = {
+    assets: {
+        all: (scope: 'global' | 'project', projectId?: string | null) =>
+            unifiedAssetsRoot(scope, projectId),
+        list: (params: {
+            scope: 'global' | 'project'
+            projectId?: string | null
+            folderId?: string | null
+            kind?: 'character' | 'location' | 'voice' | 'prop' | null
+        }) => [
+            ...unifiedAssetsRoot(params.scope, params.projectId),
+            params.folderId ?? '',
+            params.kind ?? '',
+        ] as const,
+    },
+
     // ============ 中心资产库（Asset Hub）============
     globalAssets: {
-        all: () => ['global-assets'] as const,
+        all: globalAssetsRoot,
         characters: (folderId?: string | null) =>
             folderId ? ['global-assets', 'characters', folderId] as const : ['global-assets', 'characters'] as const,
         locations: (folderId?: string | null) =>
@@ -17,7 +41,7 @@ export const queryKeys = {
 
     // ============ 项目资产 ============
     projectAssets: {
-        all: (projectId: string) => ['project-assets', projectId] as const,
+        all: projectAssetsRoot,
         characters: (projectId: string) => ['project-assets', projectId, 'characters'] as const,
         locations: (projectId: string) => ['project-assets', projectId, 'locations'] as const,
         detail: (projectId: string) => ['project-assets', projectId, 'detail'] as const,

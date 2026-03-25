@@ -19,6 +19,9 @@ describe('story-to-script orchestrator retry', () => {
       if (action === 'analyze_locations') {
         return { text: JSON.stringify({ locations: [{ name: '地点A' }] }), reasoning: '' }
       }
+      if (action === 'analyze_props') {
+        return { text: JSON.stringify({ props: [] }), reasoning: '' }
+      }
       if (action === 'split_clips') {
         return {
           text: JSON.stringify([
@@ -44,6 +47,7 @@ describe('story-to-script orchestrator retry', () => {
       promptTemplates: {
         characterPromptTemplate: '{input} {characters_lib_name} {characters_lib_info}',
         locationPromptTemplate: '{input} {locations_lib_name}',
+        propPromptTemplate: '{input} {props_lib_name}',
         clipPromptTemplate: '{input} {locations_lib_name} {characters_lib_name} {characters_introduction}',
         screenplayPromptTemplate: '{clip_content} {locations_lib_name} {characters_lib_name} {characters_introduction} {clip_id}',
       },
@@ -78,6 +82,7 @@ describe('story-to-script orchestrator retry', () => {
         promptTemplates: {
           characterPromptTemplate: '{input} {characters_lib_name} {characters_lib_info}',
           locationPromptTemplate: '{input} {locations_lib_name}',
+          propPromptTemplate: '{input} {props_lib_name}',
           clipPromptTemplate: '{input} {locations_lib_name} {characters_lib_name} {characters_introduction}',
           screenplayPromptTemplate: '{clip_content} {locations_lib_name} {characters_lib_name} {characters_introduction} {clip_id}',
         },
@@ -109,6 +114,7 @@ describe('story-to-script orchestrator retry', () => {
         promptTemplates: {
           characterPromptTemplate: '{input} {characters_lib_name} {characters_lib_info}',
           locationPromptTemplate: '{input} {locations_lib_name}',
+          propPromptTemplate: '{input} {props_lib_name}',
           clipPromptTemplate: '{input} {locations_lib_name} {characters_lib_name} {characters_introduction}',
           screenplayPromptTemplate: '{clip_content} {locations_lib_name} {characters_lib_name} {characters_introduction} {clip_id}',
         },
@@ -130,6 +136,12 @@ describe('story-to-script orchestrator retry', () => {
       if (action === 'analyze_locations') {
         return {
           text: '{"locations":[{"name":"地点A"}]}\n{"extra":"ignored"}',
+          reasoning: '',
+        }
+      }
+      if (action === 'analyze_props') {
+        return {
+          text: '{"props":[]}\n{"extra":"ignored"}',
           reasoning: '',
         }
       }
@@ -156,6 +168,7 @@ describe('story-to-script orchestrator retry', () => {
       promptTemplates: {
         characterPromptTemplate: '{input} {characters_lib_name} {characters_lib_info}',
         locationPromptTemplate: '{input} {locations_lib_name}',
+        propPromptTemplate: '{input} {props_lib_name}',
         clipPromptTemplate: '{input} {locations_lib_name} {characters_lib_name} {characters_introduction}',
         screenplayPromptTemplate: '{clip_content} {locations_lib_name} {characters_lib_name} {characters_introduction} {clip_id}',
       },
@@ -181,6 +194,9 @@ describe('story-to-script orchestrator retry', () => {
       }
       if (action === 'analyze_locations') {
         return { text: JSON.stringify({ locations: [{ name: '地点A' }] }), reasoning: '' }
+      }
+      if (action === 'analyze_props') {
+        return { text: JSON.stringify({ props: [] }), reasoning: '' }
       }
       if (action === 'split_clips') {
         return {
@@ -213,6 +229,7 @@ describe('story-to-script orchestrator retry', () => {
       promptTemplates: {
         characterPromptTemplate: '{input} {characters_lib_name} {characters_lib_info}',
         locationPromptTemplate: '{input} {locations_lib_name}',
+        propPromptTemplate: '{input} {props_lib_name}',
         clipPromptTemplate: '{input} {locations_lib_name} {characters_lib_name} {characters_introduction}',
         screenplayPromptTemplate: '{clip_content} {locations_lib_name} {characters_lib_name} {characters_introduction} {clip_id}',
       },
@@ -238,6 +255,9 @@ describe('story-to-script orchestrator retry', () => {
       }
       if (action === 'analyze_locations') {
         return { text: JSON.stringify({ locations: [{ name: '地点A' }] }), reasoning: '' }
+      }
+      if (action === 'analyze_props') {
+        return { text: JSON.stringify({ props: [] }), reasoning: '' }
       }
       if (action === 'split_clips') {
         return {
@@ -268,6 +288,7 @@ describe('story-to-script orchestrator retry', () => {
       promptTemplates: {
         characterPromptTemplate: '{input} {characters_lib_name} {characters_lib_info}',
         locationPromptTemplate: '{input} {locations_lib_name}',
+        propPromptTemplate: '{input} {props_lib_name}',
         clipPromptTemplate: '{input} {locations_lib_name} {characters_lib_name} {characters_introduction}',
         screenplayPromptTemplate: '{clip_content} {locations_lib_name} {characters_lib_name} {characters_introduction} {clip_id}',
       },

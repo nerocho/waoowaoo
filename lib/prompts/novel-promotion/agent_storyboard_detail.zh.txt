@@ -165,6 +165,9 @@
 场景描述：
 {locations_description}
 
+道具描述：
+{props_description}
+
 【严格要求】
 1. 为每个分镜补充shot_type、camera_move、video_prompt
 2. shot_type格式：视角+景别（如"平视中景"、"越肩近景"、"仰拍全景"）
@@ -178,4 +181,3 @@
 10. description可以适当优化，但不要改变核心内容
 11. ⚠️ 必须保留输入分镜中的 source_text 字段，原样输出到结果中，不得遗漏或修改
 12. ⚠️ JSON安全：所有引号（""''等）在 JSON 字符串值中必须统一替换为「」，严禁出现未转义的英文双引号 "
-

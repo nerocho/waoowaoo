@@ -40,6 +40,16 @@ const prismaMock = vi.hoisted(() => ({
   novelPromotionClip: {
     update: vi.fn(),
   },
+  novelPromotionStoryboard: {
+    findUnique: vi.fn(),
+    update: vi.fn(),
+  },
+  novelPromotionPanel: {
+    findUnique: vi.fn(),
+    update: vi.fn(),
+    create: vi.fn(),
+    count: vi.fn(),
+  },
 }))
 
 vi.mock('@/lib/api-auth', () => {
@@ -158,14 +168,18 @@ async function invokeRouteMethod(
   const req = buildMockRequest({
     path,
     method,
-    ...(method === 'GET' || method === 'DELETE' ? {} : { body: buildGenericBody() }),
+    ...(method === 'GET' ? {} : { body: buildGenericBody() }),
   })
   return await handler(req, { params: Promise.resolve(params) })
 }
 
 describe('api contract - crud routes (behavior)', () => {
   const routes = ROUTE_CATALOG.filter(
-    (entry) => entry.contractGroup === 'crud-asset-hub-routes' || entry.contractGroup === 'crud-novel-promotion-routes',
+    (entry) => (
+      entry.contractGroup === 'crud-assets-routes'
+      || entry.contractGroup === 'crud-asset-hub-routes'
+      || entry.contractGroup === 'crud-novel-promotion-routes'
+    ),
   )
 
   beforeEach(() => {
@@ -223,9 +237,36 @@ describe('api contract - crud routes (behavior)', () => {
       id: 'clip-1',
       characters: JSON.stringify(['Alice']),
       location: 'Old Town',
+      props: JSON.stringify(['Bronze Dagger']),
       content: 'clip content',
       screenplay: JSON.stringify({ scenes: [{ id: 1 }] }),
     })
+    prismaMock.novelPromotionStoryboard.findUnique.mockResolvedValue({
+      id: 'storyboard-1',
+      projectId: 'project-1',
+    })
+    prismaMock.novelPromotionStoryboard.update.mockResolvedValue({
+      id: 'storyboard-1',
+      panelCount: 1,
+    })
+    prismaMock.novelPromotionPanel.findUnique.mockResolvedValue({
+      id: 'panel-1',
+      storyboardId: 'storyboard-1',
+      panelIndex: 0,
+    })
+    prismaMock.novelPromotionPanel.update.mockResolvedValue({
+      id: 'panel-1',
+      storyboardId: 'storyboard-1',
+      panelIndex: 0,
+      props: JSON.stringify(['Bronze Dagger']),
+    })
+    prismaMock.novelPromotionPanel.create.mockResolvedValue({
+      id: 'panel-2',
+      storyboardId: 'storyboard-1',
+      panelIndex: 1,
+      props: JSON.stringify(['Bronze Dagger']),
+    })
+    prismaMock.novelPromotionPanel.count.mockResolvedValue(1)
   })
 
   it('crud route group exists', () => {
@@ -329,11 +370,9 @@ describe('api contract - crud routes (behavior)', () => {
       },
     })
 
-    const payload = await res.json() as { success: boolean; selectedIndex: number; imageUrl: string }
+    const payload = await res.json() as { success: boolean }
     expect(payload).toEqual({
       success: true,
-      selectedIndex: 1,
-      imageUrl: 'https://signed.example/cos/char-1.png',
     })
   })
 
@@ -374,6 +413,7 @@ describe('api contract - crud routes (behavior)', () => {
       body: {
         characters: JSON.stringify(['Alice']),
         location: 'Old Town',
+        props: JSON.stringify(['Bronze Dagger']),
         content: 'clip content',
         screenplay: JSON.stringify({ scenes: [{ id: 1 }] }),
       },
@@ -388,8 +428,41 @@ describe('api contract - crud routes (behavior)', () => {
       data: {
         characters: JSON.stringify(['Alice']),
         location: 'Old Town',
+        props: JSON.stringify(['Bronze Dagger']),
         content: 'clip content',
         screenplay: JSON.stringify({ scenes: [{ id: 1 }] }),
+      },
+    })
+  })
+
+  it('PUT /novel-promotion/[projectId]/panel writes provided props to prisma.novelPromotionPanel.update', async () => {
+    authState.authenticated = true
+    const mod = await import('@/app/api/novel-promotion/[projectId]/panel/route')
+    const req = buildMockRequest({
+      path: '/api/novel-promotion/project-1/panel',
+      method: 'PUT',
+      body: {
+        storyboardId: 'storyboard-1',
+        panelIndex: 0,
+        location: 'Old Town',
+        characters: JSON.stringify(['Alice']),
+        props: JSON.stringify(['Bronze Dagger']),
+        description: 'panel description',
+      },
+    })
+
+    const res = await mod.PUT(req, {
+      params: Promise.resolve({ projectId: 'project-1' }),
+    })
+
+    expect(res.status).toBe(200)
+    expect(prismaMock.novelPromotionPanel.update).toHaveBeenCalledWith({
+      where: { id: 'panel-1' },
+      data: {
+        location: 'Old Town',
+        characters: JSON.stringify(['Alice']),
+        props: JSON.stringify(['Bronze Dagger']),
+        description: 'panel description',
       },
     })
   })

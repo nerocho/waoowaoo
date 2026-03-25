@@ -51,6 +51,13 @@
         "description": "Location Description",
         "descPlaceholder": "Enter location description..."
     },
+    "prop": {
+        "title": "New Prop",
+        "name": "Prop Name",
+        "namePlaceholder": "Enter prop name",
+        "summary": "Prop Description",
+        "summaryPlaceholder": "Describe the prop..."
+    },
     "artStyle": {
         "title": "Art Style"
     },
@@ -72,6 +79,8 @@
         "addOnlyToAssetHub": "Add only to asset hub",
         "addOnlyLocation": "Add location only",
         "addOnlyToAssetHubLocation": "Add location to asset hub only",
+        "addOnlyProp": "Add prop only",
+        "addOnlyToAssetHubProp": "Add prop to asset hub only",
         "addAndGeneratePrefix": "Add and generate",
         "generateCountSuffix": "images",
         "selectGenerateCount": "Select generation count",

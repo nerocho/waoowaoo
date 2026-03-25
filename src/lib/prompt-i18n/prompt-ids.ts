@@ -22,6 +22,7 @@ export const PROMPT_IDS = {
   NP_LOCATION_MODIFY: 'np_location_modify',
   NP_LOCATION_REGENERATE: 'np_location_regenerate',
   NP_SCREENPLAY_CONVERSION: 'np_screenplay_conversion',
+  NP_SELECT_PROP: 'np_select_prop',
   NP_SELECT_LOCATION: 'np_select_location',
   NP_SINGLE_PANEL_IMAGE: 'np_single_panel_image',
   NP_STORYBOARD_EDIT: 'np_storyboard_edit',

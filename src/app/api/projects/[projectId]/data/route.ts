@@ -5,6 +5,10 @@ import { requireUserAuth, isErrorResponse } from '@/lib/api-auth'
 import { apiHandler, ApiError } from '@/lib/api-errors'
 import { attachMediaFieldsToProject } from '@/lib/media/attach'
 
+function readAssetKind(value: Record<string, unknown>): string {
+  return typeof value.assetKind === 'string' ? value.assetKind : 'location'
+}
+
 /**
  * 统一的项目数据加载API
  * 返回项目基础信息、全局配置、全局资产和剧集列表
@@ -71,10 +75,15 @@ export const GET = apiHandler(async (
 
   // 转换为稳定媒体 URL（并保留兼容字段）
   const novelPromotionDataWithSignedUrls = await attachMediaFieldsToProject(novelPromotionData)
+  const filteredNovelPromotionData = {
+    ...novelPromotionDataWithSignedUrls,
+    locations: (novelPromotionDataWithSignedUrls.locations || []).filter((item) => readAssetKind(item) !== 'prop'),
+    props: (novelPromotionDataWithSignedUrls.locations || []).filter((item) => readAssetKind(item) === 'prop'),
+  }
 
   const fullProject = {
     ...project,
-    novelPromotionData: novelPromotionDataWithSignedUrls
+    novelPromotionData: filteredNovelPromotionData
     // 🔥 不再用 userPreference 覆盖任何字段
     // editModel 等配置应该直接使用 novelPromotionData 中的值
   }

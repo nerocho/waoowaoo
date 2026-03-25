@@ -20,6 +20,10 @@ export type AnalyzeGlobalLocationsData = {
   locations?: Array<Record<string, unknown>>
 }
 
+export type AnalyzeGlobalPropsData = {
+  props?: Array<Record<string, unknown>>
+}
+
 export function chunkContent(text: string, maxSize = CHUNK_SIZE): string[] {
   const chunks: string[] = []
   const paragraphs = text.split(/\n\n+/)
@@ -90,6 +94,14 @@ export function safeParseCharactersResponse(responseText: string): AnalyzeGlobal
 export function safeParseLocationsResponse(responseText: string): AnalyzeGlobalLocationsData {
   try {
     return parseJsonResponse(responseText) as AnalyzeGlobalLocationsData
+  } catch {
+    return {}
+  }
+}
+
+export function safeParsePropsResponse(responseText: string): AnalyzeGlobalPropsData {
+  try {
+    return parseJsonResponse(responseText) as AnalyzeGlobalPropsData
   } catch {
     return {}
   }

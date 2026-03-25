@@ -16,6 +16,7 @@ import { useWorkspaceProjectSnapshot } from './useWorkspaceProjectSnapshot'
 import { useWorkspaceModalEscape } from './useWorkspaceModalEscape'
 import { useWorkspaceStageRuntime } from './useWorkspaceStageRuntime'
 import { useWorkspaceConfigActions } from './useWorkspaceConfigActions'
+import { useWorkspaceAutoRun } from './useWorkspaceAutoRun'
 import { buildWorkspaceControllerViewModel } from './workspace-controller-view-model'
 import type { NovelPromotionWorkspaceProps } from '../types'
 import { useRouter } from '@/i18n/navigation'
@@ -111,6 +112,10 @@ export function useNovelPromotionWorkspaceController({
 
   const isStartingStoryToScript = rebuildState.pendingActionType === 'storyToScript'
   const isStartingScriptToStoryboard = rebuildState.pendingActionType === 'scriptToStoryboard'
+  const isStoryToScriptRunning =
+    execution.storyToScriptStream.isRunning ||
+    execution.storyToScriptStream.isRecoveredRunning ||
+    execution.storyToScriptStream.status === 'running'
 
   const isAnyOperationRunning =
     isStartingStoryToScript ||
@@ -121,6 +126,17 @@ export function useNovelPromotionWorkspaceController({
     execution.isTransitioning ||
     execution.storyToScriptStream.isRunning ||
     execution.scriptToStoryboardStream.isRunning
+
+  useWorkspaceAutoRun({
+    searchParams,
+    router,
+    episodeId,
+    novelText: projectSnapshot.novelText,
+    isTransitioning: execution.isTransitioning,
+    isStoryToScriptRunning,
+    runWithRebuildConfirm: rebuildState.runWithRebuildConfirm,
+    runStoryToScriptFlow: execution.runStoryToScriptFlow,
+  })
 
   const capsuleNavItems = useWorkspaceStageNavigation({
     isAnyOperationRunning,

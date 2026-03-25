@@ -9,6 +9,8 @@ import {
   CharacterEditModal,
   LocationCreationModal,
   LocationEditModal,
+  PropCreationModal,
+  PropEditModal,
 } from '@/components/shared/assets'
 import GlobalAssetPicker from '@/components/shared/assets/GlobalAssetPicker'
 import type { CharacterProfileData } from '@/types/character-profile'
@@ -27,6 +29,13 @@ interface EditingLocationState {
   locationId: string
   locationName: string
   description: string
+}
+
+interface EditingPropState {
+  propId: string
+  propName: string
+  summary: string
+  variantId?: string
 }
 
 interface LocationImageEditModalState {
@@ -52,7 +61,7 @@ interface AssetsStageModalsProps {
   projectId: string
   onRefresh: () => void
   onClosePreview: () => void
-  handleGenerateImage: (type: 'character' | 'location', id: string, appearanceId?: string) => Promise<void>
+  handleGenerateImage: (type: 'character' | 'location' | 'prop', id: string, appearanceId?: string) => Promise<void>
   handleUpdateAppearanceDescription: (newDescription: string) => Promise<void>
   handleUpdateLocationDescription: (newDescription: string) => Promise<void>
   handleLocationImageEdit: (modifyPrompt: string, extraImageUrls?: string[]) => Promise<void>
@@ -64,8 +73,10 @@ interface AssetsStageModalsProps {
   handleConfirmProfile: (characterId: string, updatedProfileData?: CharacterProfileData) => Promise<void>
   closeEditingAppearance: () => void
   closeEditingLocation: () => void
+  closeEditingProp: () => void
   closeAddCharacter: () => void
   closeAddLocation: () => void
+  closeAddProp: () => void
   closeImageEditModal: () => void
   closeCharacterImageEditModal: () => void
   isConfirmingCharacter: (characterId: string) => boolean
@@ -75,8 +86,10 @@ interface AssetsStageModalsProps {
   characterImageEditModal: CharacterImageEditModalState | null
   editingAppearance: EditingAppearanceState | null
   editingLocation: EditingLocationState | null
+  editingProp: EditingPropState | null
   showAddCharacter: boolean
   showAddLocation: boolean
+  showAddProp: boolean
   voiceDesignCharacter: VoiceDesignCharacterState | null
   editingProfile: EditingProfileState | null
   copyFromGlobalTarget: GlobalCopyTarget | null
@@ -99,8 +112,10 @@ export default function AssetsStageModals({
   handleConfirmProfile,
   closeEditingAppearance,
   closeEditingLocation,
+  closeEditingProp,
   closeAddCharacter,
   closeAddLocation,
+  closeAddProp,
   closeImageEditModal,
   closeCharacterImageEditModal,
   isConfirmingCharacter,
@@ -110,8 +125,10 @@ export default function AssetsStageModals({
   characterImageEditModal,
   editingAppearance,
   editingLocation,
+  editingProp,
   showAddCharacter,
   showAddLocation,
+  showAddProp,
   voiceDesignCharacter,
   editingProfile,
   copyFromGlobalTarget,
@@ -192,6 +209,18 @@ export default function AssetsStageModals({
         />
       )}
 
+      {showAddProp && (
+        <PropCreationModal
+          mode="project"
+          projectId={projectId}
+          onClose={closeAddProp}
+          onSuccess={() => {
+            closeAddProp()
+            onRefresh()
+          }}
+        />
+      )}
+
       {voiceDesignCharacter && (
         <VoiceDesignDialog
           isOpen={!!voiceDesignCharacter}
@@ -200,6 +229,19 @@ export default function AssetsStageModals({
           projectId={projectId}
           onClose={handleCloseVoiceDesign}
           onSave={handleVoiceDesignSave}
+        />
+      )}
+
+      {editingProp && (
+        <PropEditModal
+          mode="project"
+          propId={editingProp.propId}
+          propName={editingProp.propName}
+          summary={editingProp.summary}
+          variantId={editingProp.variantId}
+          projectId={projectId}
+          onClose={closeEditingProp}
+          onRefresh={onRefresh}
         />
       )}
 

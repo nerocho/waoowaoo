@@ -16,18 +16,26 @@ export function useUpdateCharacterName() {
 
   return useMutation({
     mutationFn: async ({ characterId, name }: { characterId: string; name: string }) => {
-      const res = await requestJsonWithError(`/api/asset-hub/characters/${characterId}`, {
+      const res = await requestJsonWithError(`/api/assets/${characterId}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ name }),
+        body: JSON.stringify({
+          scope: 'global',
+          kind: 'character',
+          name,
+        }),
       }, 'Failed to update character name')
 
       // 等待图片标签更新完成，确保 onSuccess invalidate 后前端能立即看到新标签
       try {
-        await apiFetch('/api/asset-hub/update-asset-label', {
+        await apiFetch(`/api/assets/${characterId}/update-label`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ type: 'character', id: characterId, newName: name }),
+          body: JSON.stringify({
+            scope: 'global',
+            kind: 'character',
+            newName: name,
+          }),
         })
       } catch (e) {
         console.error('更新图片标签失败:', e)
@@ -45,18 +53,26 @@ export function useUpdateLocationName() {
 
   return useMutation({
     mutationFn: async ({ locationId, name }: { locationId: string; name: string }) => {
-      const res = await requestJsonWithError(`/api/asset-hub/locations/${locationId}`, {
+      const res = await requestJsonWithError(`/api/assets/${locationId}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ name }),
+        body: JSON.stringify({
+          scope: 'global',
+          kind: 'location',
+          name,
+        }),
       }, 'Failed to update location name')
 
       // 等待图片标签更新完成，确保 onSuccess invalidate 后前端能立即看到新标签
       try {
-        await apiFetch('/api/asset-hub/update-asset-label', {
+        await apiFetch(`/api/assets/${locationId}/update-label`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ type: 'location', id: locationId, newName: name }),
+          body: JSON.stringify({
+            scope: 'global',
+            kind: 'location',
+            newName: name,
+          }),
         })
       } catch (e) {
         console.error('更新图片标签失败:', e)
@@ -82,10 +98,28 @@ export function useUpdateCharacterAppearanceDescription() {
       appearanceIndex: number
       description: string
     }) => {
-      return await requestJsonWithError('/api/asset-hub/appearances', {
+      const assetQuery = new URLSearchParams({
+        scope: 'global',
+        kind: 'character',
+      })
+      const assets = await requestJsonWithError<{ assets?: Array<{ id: string; variants?: Array<{ index: number; id: string }> }> }>(
+        `/api/assets?${assetQuery.toString()}`,
+        { method: 'GET' },
+        'Failed to resolve appearance variant',
+      )
+      const asset = (assets.assets ?? []).find((item) => item.id === characterId)
+      const variantId = asset?.variants?.find((variant) => variant.index === appearanceIndex)?.id
+      if (!variantId) {
+        throw new Error('Failed to resolve appearance variant')
+      }
+      return await requestJsonWithError(`/api/assets/${characterId}/variants/${variantId}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ characterId, appearanceIndex, description }),
+        body: JSON.stringify({
+          scope: 'global',
+          kind: 'character',
+          description,
+        }),
       }, 'Failed to update appearance description')
     },
     onSuccess: invalidateCharacters,
@@ -104,10 +138,14 @@ export function useUpdateLocationSummary() {
       locationId: string
       summary: string
     }) => {
-      return await requestJsonWithError(`/api/asset-hub/locations/${locationId}`, {
+      return await requestJsonWithError(`/api/assets/${locationId}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ summary }),
+        body: JSON.stringify({
+          scope: 'global',
+          kind: 'location',
+          summary,
+        }),
       }, 'Failed to update location summary')
     },
     onSuccess: invalidateLocations,

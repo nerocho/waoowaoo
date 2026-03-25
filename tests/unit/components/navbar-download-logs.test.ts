@@ -96,6 +96,7 @@ describe('Navbar download logs entry', () => {
     const html = renderWithIntl(createElement(Navbar))
 
     expect(html).toContain('下载日志')
+    expect(html).toContain('href="/home"')
     expect(html).toContain('href="/api/admin/download-logs"')
     expect(html).toContain('download=""')
   })

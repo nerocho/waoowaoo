@@ -77,6 +77,7 @@ function buildAssets(selectedIndex: number | null): ProjectAssetsData {
   return {
     characters: [buildCharacter(selectedIndex)],
     locations: [] as Location[],
+    props: [],
   }
 }
 
@@ -85,6 +86,7 @@ function buildProject(selectedIndex: number | null): Project {
     novelPromotionData: {
       characters: [buildCharacter(selectedIndex)],
       locations: [],
+      props: [],
     },
   } as unknown as Project
 }

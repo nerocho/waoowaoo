@@ -3,7 +3,7 @@ import { logInfo as _ulogInfo } from '@/lib/logging/core'
 
 import { useTranslations } from 'next-intl'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import type { Character, Location } from '@/types/project'
+import type { Character, Location, Prop } from '@/types/project'
 import { useProjectAssets } from '@/lib/query/hooks/useProjectAssets'
 import { resolveTaskPresentationState } from '@/lib/task/presentation'
 import {
@@ -13,11 +13,13 @@ import {
 } from './clip-asset-utils'
 import ScriptViewScriptPanel from './ScriptViewScriptPanel'
 import ScriptViewAssetsPanel from './ScriptViewAssetsPanel'
+import { reuseStringArrayIfEqual, reuseStringSetIfEqual } from './selection-sync'
 import {
   getPrimaryAppearance,
   getSelectedAppearances,
   processCharacterInClip,
   processLocationInClip,
+  processPropInClip,
 } from './asset-state-utils'
 import { PRIMARY_APPEARANCE_INDEX } from '@/lib/constants'
 
@@ -29,6 +31,7 @@ interface Clip {
   screenplay?: string | null
   characters: string | null
   location: string | null
+  props: string | null
 }
 
 interface Panel {
@@ -90,9 +93,11 @@ export default function ScriptView({
   const { data: assets } = useProjectAssets(projectId)
   const characters: Character[] = useMemo(() => assets?.characters ?? [], [assets?.characters])
   const locations: Location[] = useMemo(() => assets?.locations ?? [], [assets?.locations])
+  const props: Prop[] = useMemo(() => assets?.props ?? [], [assets?.props])
 
   const [activeCharIds, setActiveCharIds] = useState<string[]>([])
   const [activeLocationIds, setActiveLocationIds] = useState<string[]>([])
+  const [activePropIds, setActivePropIds] = useState<string[]>([])
   const [selectedAppearanceKeys, setSelectedAppearanceKeys] = useState<Set<string>>(new Set())
 
   const isManuallyEditingRef = useRef(false)
@@ -122,12 +127,14 @@ export default function ScriptView({
 
     let charNames = new Set<string>()
     let locNames = new Set<string>()
+    let propNames = new Set<string>()
     let charAppearanceSet = new Set<string>()
 
     if (assetViewMode === 'all') {
       const all = getAllClipsAssets()
       charNames = all.allCharNames
       locNames = all.allLocNames
+      propNames = all.allPropNames
       charAppearanceSet = all.allCharAppearanceSet
     } else {
       const clip = clips.find((c) => c.id === assetViewMode)
@@ -135,6 +142,7 @@ export default function ScriptView({
         const parsed = parseClipAssets(clip)
         charNames = parsed.charNames
         locNames = parsed.locNames
+        propNames = parsed.propNames
         charAppearanceSet = parsed.charAppearanceSet
       }
     }
@@ -167,14 +175,18 @@ export default function ScriptView({
     const matchedLocIds = locations
       .filter((l) => Array.from(locNames).some((clipLocName) => fuzzyMatchLocation(clipLocName, l.name)))
       .map((l) => l.id)
+    const matchedPropIds = props
+      .filter((prop) => Array.from(propNames).some((clipPropName) => clipPropName.toLowerCase() === prop.name.toLowerCase()))
+      .map((prop) => prop.id)
 
-    setActiveCharIds(matchedCharIds)
-    setActiveLocationIds(matchedLocIds)
-    setSelectedAppearanceKeys(newSelectedKeys)
-  }, [assetViewMode, characters, clips, getAllClipsAssets, locations])
+    setActiveCharIds((previous) => reuseStringArrayIfEqual(previous, matchedCharIds))
+    setActiveLocationIds((previous) => reuseStringArrayIfEqual(previous, matchedLocIds))
+    setActivePropIds((previous) => reuseStringArrayIfEqual(previous, matchedPropIds))
+    setSelectedAppearanceKeys((previous) => reuseStringSetIfEqual(previous, newSelectedKeys))
+  }, [assetViewMode, characters, clips, getAllClipsAssets, locations, props])
 
   const handleUpdateClipAssets = async (
-    type: 'character' | 'location',
+    type: 'character' | 'location' | 'prop',
     action: 'add' | 'remove',
     id: string,
     optionLabel?: string,
@@ -265,6 +277,42 @@ export default function ScriptView({
       return
     }
 
+    if (type === 'prop') {
+      const targetProp = props.find((item) => item.id === id)
+      if (!targetProp) return
+
+      if (isAllMode && action === 'remove') {
+        for (const clip of clips) {
+          const newValue = processPropInClip({
+            clip,
+            action: 'remove',
+            targetProp,
+          })
+          if (newValue !== null) {
+            await onClipUpdate(clip.id, { props: newValue })
+          }
+        }
+        setActivePropIds(activePropIds.filter((propId) => propId !== id))
+        return
+      }
+
+      const clip = clips.find((c) => c.id === targetClipId)
+      if (!clip) return
+
+      const newValue = processPropInClip({
+        clip,
+        action,
+        targetProp,
+      })
+      const newActiveIds =
+        action === 'add' ? [...activePropIds, id] : activePropIds.filter((propId) => propId !== id)
+      setActivePropIds(newActiveIds)
+      if (newValue !== null) {
+        await onClipUpdate(targetClipId!, { props: newValue })
+      }
+      return
+    }
+
     const targetLoc = locations.find((l) => l.id === id)
     if (!targetLoc) return
 
@@ -320,7 +368,7 @@ export default function ScriptView({
     }
   }
 
-  const { allCharNames: globalCharNames, allLocNames: globalLocNames } = getAllClipsAssets()
+  const { allCharNames: globalCharNames, allLocNames: globalLocNames, allPropNames: globalPropNames } = getAllClipsAssets()
 
   const globalCharIds = characters
     .filter((c) => {
@@ -332,9 +380,13 @@ export default function ScriptView({
   const globalLocationIds = locations
     .filter((l) => Array.from(globalLocNames).some((clipLocName) => fuzzyMatchLocation(clipLocName, l.name)))
     .map((l) => l.id)
+  const globalPropIds = props
+    .filter((prop) => Array.from(globalPropNames).some((clipPropName) => clipPropName.toLowerCase() === prop.name.toLowerCase()))
+    .map((prop) => prop.id)
 
   const globalActiveChars = characters.filter((c) => globalCharIds.includes(c.id))
   const globalActiveLocations = locations.filter((l) => globalLocationIds.includes(l.id))
+  const globalActiveProps = props.filter((prop) => globalPropIds.includes(prop.id))
 
   const charsWithoutImage = globalActiveChars.filter((char) => {
     const appearance = getPrimaryAppearance(char)
@@ -348,9 +400,15 @@ export default function ScriptView({
       : undefined) || loc.images?.find((img) => img.isSelected) || loc.images?.find((img) => img.imageUrl)
     return !image?.imageUrl
   })
+  const propsWithoutImage = globalActiveProps.filter((prop) => {
+    const image = (prop.selectedImageId
+      ? prop.images?.find((img) => img.id === prop.selectedImageId)
+      : undefined) || prop.images?.find((img) => img.isSelected) || prop.images?.find((img) => img.imageUrl)
+    return !image?.imageUrl
+  })
 
-  const allAssetsHaveImages = charsWithoutImage.length === 0 && locationsWithoutImage.length === 0
-  const missingAssetsCount = charsWithoutImage.length + locationsWithoutImage.length
+  const allAssetsHaveImages = charsWithoutImage.length === 0 && locationsWithoutImage.length === 0 && propsWithoutImage.length === 0
+  const missingAssetsCount = charsWithoutImage.length + locationsWithoutImage.length + propsWithoutImage.length
 
   return (
     <div className="w-full grid grid-cols-12 gap-6 min-h-[400px] lg:h-[calc(100vh-180px)] animate-fadeIn">
@@ -373,8 +431,10 @@ export default function ScriptView({
         setSelectedClipId={setSelectedClipId}
         characters={characters}
         locations={locations}
+        props={props}
         activeCharIds={activeCharIds}
         activeLocationIds={activeLocationIds}
+        activePropIds={activePropIds}
         selectedAppearanceKeys={selectedAppearanceKeys}
         onUpdateClipAssets={handleUpdateClipAssets}
         onOpenAssetLibrary={onOpenAssetLibrary}
@@ -383,6 +443,7 @@ export default function ScriptView({
         allAssetsHaveImages={allAssetsHaveImages}
         globalCharIds={globalCharIds}
         globalLocationIds={globalLocationIds}
+        globalPropIds={globalPropIds}
         missingAssetsCount={missingAssetsCount}
         onGenerateStoryboard={onGenerateStoryboard}
         isSubmittingStoryboardBuild={isSubmittingStoryboardBuild}

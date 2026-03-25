@@ -55,6 +55,7 @@ export interface ProjectLike {
   audioUrl?: string | null
   characters?: CharacterLike[]
   locations?: LocationLike[]
+  props?: LocationLike[]
   shots?: ShotLike[]
   storyboards?: StoryboardLike[]
   [key: string]: unknown
@@ -209,6 +210,7 @@ export function addSignedUrlsToProject(project: ProjectLike) {
     audioUrl: project.audioUrl ? getSignedUrl(project.audioUrl) : project.audioUrl,
     characters: project.characters?.map(addSignedUrlsToCharacter) || [],
     locations: project.locations?.map(addSignedUrlToLocation) || [],
+    props: project.props?.map(addSignedUrlToLocation) || [],
     shots: project.shots?.map(addSignedUrlsToShot) || [],
     storyboards: project.storyboards?.map(addSignedUrlsToStoryboard) || [],
   }

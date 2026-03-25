@@ -4,6 +4,10 @@ import { requireProjectAuthLight, isErrorResponse } from '@/lib/api-auth'
 import { apiHandler } from '@/lib/api-errors'
 import { attachMediaFieldsToProject } from '@/lib/media/attach'
 
+function readAssetKind(value: Record<string, unknown>): string {
+    return typeof value.assetKind === 'string' ? value.assetKind : 'location'
+}
+
 /**
  * GET - 获取项目资产（角色 + 场景）
  * 🔥 V6.5: 为 useProjectAssets hook 提供统一的资产数据接口
@@ -42,14 +46,17 @@ export const GET = apiHandler(async (
     })
 
     if (!novelData) {
-        return NextResponse.json({ characters: [], locations: [] })
+        return NextResponse.json({ characters: [], locations: [], props: [] })
     }
 
     // 为资产添加稳定媒体 URL（并保留兼容字段）
     const withSignedUrls = await attachMediaFieldsToProject(novelData)
+    const locations = (withSignedUrls.locations || []).filter((item) => readAssetKind(item) !== 'prop')
+    const props = (withSignedUrls.locations || []).filter((item) => readAssetKind(item) === 'prop')
 
     return NextResponse.json({
         characters: withSignedUrls.characters || [],
-        locations: withSignedUrls.locations || []
+        locations,
+        props,
     })
 })

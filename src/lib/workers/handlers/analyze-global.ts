@@ -13,11 +13,16 @@ import {
   readText,
   safeParseCharactersResponse,
   safeParseLocationsResponse,
+  safeParsePropsResponse,
   type CharacterBrief,
 } from './analyze-global-parse'
 import { buildAnalyzeGlobalPrompts, loadAnalyzeGlobalPromptTemplates } from './analyze-global-prompt'
 import { createAnalyzeGlobalStats, persistAnalyzeGlobalChunk } from './analyze-global-persist'
 import { resolveAnalysisModel } from './resolve-analysis-model'
+
+function readAssetKind(value: Record<string, unknown>): string {
+  return typeof value.assetKind === 'string' ? value.assetKind : 'location'
+}
 
 export async function handleAnalyzeGlobalTask(job: Job<TaskJobData>) {
   const projectId = job.data.projectId
@@ -81,11 +86,18 @@ export async function handleAnalyzeGlobalTask(job: Job<TaskJobData>) {
     introduction: readText((item as Record<string, unknown>).introduction),
   }))
   const existingCharacterNames = existingCharacters.flatMap((item) => [item.name, ...item.aliases])
-  const existingLocationNames = novelData.locations.map((item) => item.name)
-  const existingLocationInfo = novelData.locations.map((item) => {
+  const existingLocationNames = novelData.locations
+    .filter((item) => readAssetKind(item as unknown as Record<string, unknown>) !== 'prop')
+    .map((item) => item.name)
+  const existingLocationInfo = novelData.locations
+    .filter((item) => readAssetKind(item as unknown as Record<string, unknown>) !== 'prop')
+    .map((item) => {
     const summary = readText(item.summary)
     return summary ? `${item.name}(${summary})` : item.name
   })
+  const existingPropNames = novelData.locations
+    .filter((item) => readAssetKind(item as unknown as Record<string, unknown>) === 'prop')
+    .map((item) => item.name)
   const stats = createAnalyzeGlobalStats(chunks.length)
 
   await reportTaskProgress(job, 10, {
@@ -115,14 +127,15 @@ export async function handleAnalyzeGlobalTask(job: Job<TaskJobData>) {
         stepTotal: chunks.length,
       })
 
-      const { characterPrompt, locationPrompt } = buildAnalyzeGlobalPrompts({
+      const { characterPrompt, locationPrompt, propPrompt } = buildAnalyzeGlobalPrompts({
         chunk,
         templates,
         existingCharacters,
         existingLocationInfo,
+        existingPropNames,
       })
 
-      const [characterCompletion, locationCompletion] = await withInternalLLMStreamCallbacks(
+      const [characterCompletion, locationCompletion, propCompletion] = await withInternalLLMStreamCallbacks(
         streamCallbacks,
         async () =>
           await Promise.all([
@@ -154,22 +167,40 @@ export async function handleAnalyzeGlobalTask(job: Job<TaskJobData>) {
                 stepTotal: chunks.length,
               },
             }),
+            executeAiTextStep({
+              userId: job.data.userId,
+              model: analysisModel,
+              messages: [{ role: 'user', content: propPrompt }],
+              temperature: 0.7,
+              projectId,
+              action: 'analyze_global_props',
+              meta: {
+                stepId: `analyze_global_props_${i + 1}`,
+                stepTitle: `道具分析 ${i + 1}/${chunks.length}`,
+                stepIndex: i + 1,
+                stepTotal: chunks.length,
+              },
+            }),
           ]),
       )
 
       const characterResponse = characterCompletion.text
       const locationResponse = locationCompletion.text
+      const propResponse = propCompletion.text
       const charactersData = safeParseCharactersResponse(characterResponse)
       const locationsData = safeParseLocationsResponse(locationResponse)
+      const propsData = safeParsePropsResponse(propResponse)
 
       await persistAnalyzeGlobalChunk({
         projectInternalId: novelData.id,
         charactersData,
         locationsData,
+        propsData,
         existingCharacters,
         existingCharacterNames,
         existingLocationNames,
         existingLocationInfo,
+        existingPropNames,
         stats,
       })
 
@@ -192,10 +223,13 @@ export async function handleAnalyzeGlobalTask(job: Job<TaskJobData>) {
       newCharacters: stats.newCharacters,
       updatedCharacters: stats.updatedCharacters,
       newLocations: stats.newLocations,
+      newProps: stats.newProps,
       skippedCharacters: stats.skippedCharacters,
       skippedLocations: stats.skippedLocations,
+      skippedProps: stats.skippedProps,
       totalCharacters: existingCharacterNames.length,
       totalLocations: existingLocationNames.length,
+      totalProps: existingPropNames.length,
     },
   }
 }

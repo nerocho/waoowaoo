@@ -9,6 +9,8 @@ Inputs:
 {locations_description}
 - Character context:
 {characters_info}
+- Prop context:
+{props_description}
 
 Output format (JSON array only):
 [

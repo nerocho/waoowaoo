@@ -80,7 +80,7 @@ export function SpotlightCharCard({
     <div
       onClick={onClick}
       className={`
-        group relative rounded-xl cursor-pointer transition-all duration-500 ease-out
+        group relative min-w-0 rounded-xl cursor-pointer transition-all duration-500 ease-out
         ${isActive
           ? 'opacity-100 scale-100 ring-2 ring-[var(--glass-focus-ring-strong)] shadow-[var(--glass-shadow-md)] bg-[var(--glass-bg-surface)]'
           : 'opacity-50 scale-95 grayscale hover:grayscale-0 hover:opacity-100 hover:scale-95 bg-[var(--glass-bg-muted)]'
@@ -95,7 +95,7 @@ export function SpotlightCharCard({
               onRemove()
             }
           }}
-          className="absolute top-0 right-0 translate-x-1/2 -translate-y-1/2 w-5 h-5 bg-[var(--glass-tone-danger-fg)] rounded-full text-white text-xs flex items-center justify-center opacity-0 group-hover:opacity-100 transition-all shadow-md hover:bg-[var(--glass-tone-danger-fg)] hover:scale-110 z-20"
+          className="absolute right-2 top-2 h-5 w-5 rounded-full bg-[var(--glass-tone-danger-fg)] text-white text-xs flex items-center justify-center opacity-0 group-hover:opacity-100 transition-all shadow-md hover:bg-[var(--glass-tone-danger-fg)] hover:scale-110 z-20"
           title={tScript('asset.removeFromClip')}
         >
           <AppIcon name="closeSm" className="h-3 w-3" />
@@ -209,7 +209,7 @@ export function SpotlightLocationCard({
     <div
       onClick={onClick}
       className={`
-        group relative rounded-xl cursor-pointer transition-all duration-500 ease-out
+        group relative min-w-0 rounded-xl cursor-pointer transition-all duration-500 ease-out
         ${isActive
           ? 'opacity-100 scale-100 ring-2 ring-[var(--glass-stroke-success)] shadow-[var(--glass-shadow-md)] bg-[var(--glass-bg-surface)]'
           : 'opacity-50 scale-95 grayscale hover:grayscale-0 hover:opacity-100 hover:scale-95 bg-[var(--glass-bg-muted)]'
@@ -224,7 +224,7 @@ export function SpotlightLocationCard({
               onRemove()
             }
           }}
-          className="absolute top-0 right-0 translate-x-1/2 -translate-y-1/2 w-5 h-5 bg-[var(--glass-tone-danger-fg)] rounded-full text-white text-xs flex items-center justify-center opacity-0 group-hover:opacity-100 transition-all shadow-md hover:bg-[var(--glass-tone-danger-fg)] hover:scale-110 z-20"
+          className="absolute right-2 top-2 h-5 w-5 rounded-full bg-[var(--glass-tone-danger-fg)] text-white text-xs flex items-center justify-center opacity-0 group-hover:opacity-100 transition-all shadow-md hover:bg-[var(--glass-tone-danger-fg)] hover:scale-110 z-20"
           title={tScript('asset.removeFromClip')}
         >
           <AppIcon name="closeSm" className="h-3 w-3" />

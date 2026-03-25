@@ -46,6 +46,15 @@ function buildWorkflowWorkerId(job: Job<TaskJobData>, label: string) {
   return `${label}:${job.queueName}:${job.data.taskId}`
 }
 
+function readAssetKind(value: Record<string, unknown>): string {
+  return typeof value.assetKind === 'string' ? value.assetKind : 'location'
+}
+
+function readNullableText(value: Record<string, unknown>, key: string): string | null {
+  const field = value[key]
+  return typeof field === 'string' ? field : null
+}
+
 function isReasoningEffort(value: unknown): value is 'minimal' | 'low' | 'medium' | 'high' {
   return value === 'minimal' || value === 'low' || value === 'medium' || value === 'high'
 }
@@ -279,13 +288,17 @@ export async function handleScriptToStoryboardTask(job: Job<TaskJobData>) {
                     content: clip.content,
                     characters: clip.characters,
                     location: clip.location,
+                    props: readNullableText(clip as unknown as Record<string, unknown>, 'props'),
                     screenplay: clip.screenplay,
                   },
                   clipIndex,
                   totalClipCount: clips.length,
                   novelPromotionData: {
                     characters: novelData.characters || [],
-                    locations: novelData.locations || [],
+                    locations: (novelData.locations || []).filter((item) => readAssetKind(item as unknown as Record<string, unknown>) !== 'prop'),
+                    props: (novelData.locations || [])
+                      .filter((item) => readAssetKind(item as unknown as Record<string, unknown>) === 'prop')
+                      .map((item) => ({ name: item.name, summary: item.summary })),
                   },
                   promptTemplates: {
                     phase1PlanTemplate,
@@ -317,11 +330,15 @@ export async function handleScriptToStoryboardTask(job: Job<TaskJobData>) {
                     content: clip.content,
                     characters: clip.characters,
                     location: clip.location,
+                    props: readNullableText(clip as unknown as Record<string, unknown>, 'props'),
                     screenplay: clip.screenplay,
                   })),
                   novelPromotionData: {
                     characters: novelData.characters || [],
-                    locations: novelData.locations || [],
+                    locations: (novelData.locations || []).filter((item) => readAssetKind(item as unknown as Record<string, unknown>) !== 'prop'),
+                    props: (novelData.locations || [])
+                      .filter((item) => readAssetKind(item as unknown as Record<string, unknown>) === 'prop')
+                      .map((item) => ({ name: item.name, summary: item.summary })),
                   },
                   promptTemplates: {
                     phase1PlanTemplate,

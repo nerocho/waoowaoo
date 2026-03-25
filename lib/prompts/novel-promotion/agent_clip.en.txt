@@ -20,7 +20,8 @@ Output format (JSON array only):
     "end": "exact end snippet from source text (>=5 chars)",
     "summary": "short clip summary",
     "location": "best matched location name",
-    "characters": ["Character A", "Character B"]
+    "characters": ["Character A", "Character B"],
+    "props": ["Prop A", "Prop B"]
   }
 ]
 
@@ -28,6 +29,9 @@ Rules:
 1. Keep clips contiguous, ordered, and fully covering the source text.
 2. Prefer natural scene/drama boundaries.
 3. Minimize over-splitting.
-4. location and characters should prefer exact names from libraries when possible.
+4. location, characters, and props should prefer exact names from libraries when possible.
 5. Return JSON only, no markdown or extra text.
 6. ⚠️ JSON SAFETY: All quotation marks in dialogue (""''「」 etc.) MUST be converted to corner brackets「」in JSON string values. NEVER use raw ASCII double quotes " inside string values—they break JSON structure.
+
+Prop library:
+{props_lib_name}

@@ -7,16 +7,17 @@ import { useSession } from 'next-auth/react'
 import { useRouter } from '@/i18n/navigation'
 import Navbar from '@/components/Navbar'
 import { Link } from '@/i18n/navigation'
+import { buildAuthenticatedHomeTarget } from '@/lib/home/default-route'
 
 export default function Home() {
   const t = useTranslations('landing')
   const { data: session, status } = useSession()
   const router = useRouter()
 
-  // 已登录用户自动跳转到 workspace
+  // 已登录用户自动跳转到 home
   useEffect(() => {
     if (status === 'authenticated') {
-      router.replace({ pathname: '/workspace' })
+      router.replace(buildAuthenticatedHomeTarget())
     }
   }, [status, router])
 

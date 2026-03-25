@@ -301,6 +301,9 @@
 角色完整描述（供参考）：
 {characters_full_description}
 
+道具描述（供参考）：
+{props_description}
+
 Clip信息：
 {clip_json}
 

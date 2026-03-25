@@ -48,12 +48,13 @@ interface Location {
 
 interface LocationCardProps {
   location: Location
+  assetType?: 'location' | 'prop'
   onImageClick?: (url: string) => void
   onImageEdit?: (type: 'character' | 'location', id: string, name: string, imageIndex: number) => void
   onEdit?: (location: Location, imageIndex: number) => void
 }
 
-export function LocationCard({ location, onImageClick, onImageEdit, onEdit }: LocationCardProps) {
+export function LocationCard({ location, assetType = 'location', onImageClick, onImageEdit, onEdit }: LocationCardProps) {
   // 🔥 使用 mutation hooks
   const generateImage = useGenerateLocationImage()
   const selectImage = useSelectLocationImage()
@@ -63,6 +64,7 @@ export function LocationCard({ location, onImageClick, onImageEdit, onEdit }: Lo
 
   const t = useTranslations('assetHub')
   const tAssets = useTranslations('assets')
+  const assetLabel = assetType === 'prop' ? t('propLabel') : t('locationLabel')
   const { count: generationCount, setCount: setGenerationCount } = useImageGenerationCount('location')
   const fileInputRef = useRef<HTMLInputElement>(null)
 
@@ -353,7 +355,9 @@ export function LocationCard({ location, onImageClick, onImageEdit, onEdit }: Lo
         {showDeleteConfirm && (
           <div className="absolute inset-0 glass-overlay flex items-center justify-center z-20 rounded-xl">
             <div className="glass-surface-modal p-4 m-4">
-              <p className="mb-4 text-sm text-[var(--glass-text-primary)]">{t('confirmDeleteLocation')}</p>
+              <p className="mb-4 text-sm text-[var(--glass-text-primary)]">
+                {assetType === 'prop' ? t('confirmDeleteProp') : t('confirmDeleteLocation')}
+              </p>
               <div className="flex gap-2 justify-end">
                 <button onClick={() => setShowDeleteConfirm(false)} className="glass-btn-base glass-btn-secondary px-3 py-1.5 rounded-lg text-sm">{t('cancel')}</button>
                 <button onClick={handleDelete} className="glass-btn-base glass-btn-danger px-3 py-1.5 rounded-lg text-sm">{t('delete')}</button>
@@ -387,9 +391,9 @@ export function LocationCard({ location, onImageClick, onImageEdit, onEdit }: Lo
                 <button onClick={() => fileInputRef.current?.click()} disabled={uploadImage.isPending} className="glass-btn-base glass-btn-secondary h-7 w-7 rounded-full">
                   <AppIcon name="upload" className="w-4 h-4 text-[var(--glass-tone-success-fg)]" />
                 </button>
-                <button onClick={() => onImageEdit?.('location', location.id, location.name, currentImageIndex)} className="glass-btn-base glass-btn-tone-info h-7 w-7 rounded-full">
-                  <AppIcon name="edit" className="w-4 h-4" />
-                </button>
+                      <button onClick={() => onImageEdit?.('location', location.id, location.name, currentImageIndex)} className="glass-btn-base glass-btn-tone-info h-7 w-7 rounded-full">
+                        <AppIcon name="edit" className="w-4 h-4" />
+                      </button>
                 <button onClick={() => handleGenerate()} className="glass-btn-base glass-btn-secondary h-7 w-7 rounded-full">
                   <AppIcon name="refresh" className="w-4 h-4 text-[var(--glass-tone-info-fg)]" />
                 </button>
@@ -402,8 +406,8 @@ export function LocationCard({ location, onImageClick, onImageEdit, onEdit }: Lo
             )}
           </>
         ) : (
-          <div className="flex flex-col items-center justify-center py-12 text-[var(--glass-text-tertiary)]">
-            <AppIcon name="globe2" className="w-12 h-12 mb-3" />
+            <div className="flex flex-col items-center justify-center py-12 text-[var(--glass-text-tertiary)]">
+                <AppIcon name="globe2" className="w-12 h-12 mb-3" />
             <ImageGenerationInlineCountButton
               prefix={<span>{tAssets('image.generateCountPrefix')}</span>}
               suffix={<span>{tAssets('image.generateCountSuffix')}</span>}
@@ -431,7 +435,10 @@ export function LocationCard({ location, onImageClick, onImageEdit, onEdit }: Lo
       {/* 信息区域 */}
       <div className="p-3">
         <div className="flex items-center justify-between">
-          <h3 className="font-medium text-[var(--glass-text-primary)] text-sm truncate">{location.name}</h3>
+          <div>
+            <h3 className="font-medium text-[var(--glass-text-primary)] text-sm truncate">{location.name}</h3>
+            <p className="text-[10px] text-[var(--glass-text-tertiary)]">{assetLabel}</p>
+          </div>
           <div className="flex items-center gap-1">
             {/* 编辑按钮 */}
             <button
@@ -454,7 +461,9 @@ export function LocationCard({ location, onImageClick, onImageEdit, onEdit }: Lo
       {showDeleteConfirm && (
         <div className="absolute inset-0 glass-overlay flex items-center justify-center z-20">
           <div className="glass-surface-modal p-4 m-4">
-            <p className="mb-4 text-sm text-[var(--glass-text-primary)]">{t('confirmDeleteLocation')}</p>
+            <p className="mb-4 text-sm text-[var(--glass-text-primary)]">
+              {assetType === 'prop' ? t('confirmDeleteProp') : t('confirmDeleteLocation')}
+            </p>
             <div className="flex gap-2 justify-end">
               <button onClick={() => setShowDeleteConfirm(false)} className="glass-btn-base glass-btn-secondary px-3 py-1.5 rounded-lg text-sm">{t('cancel')}</button>
               <button onClick={handleDelete} className="glass-btn-base glass-btn-danger px-3 py-1.5 rounded-lg text-sm">{t('delete')}</button>

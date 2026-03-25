@@ -21,6 +21,7 @@ const parseMock = vi.hoisted(() => ({
   chunkContent: vi.fn(() => ['chunk-1', 'chunk-2']),
   safeParseCharactersResponse: vi.fn(() => ({ new_characters: [] })),
   safeParseLocationsResponse: vi.fn(() => ({ locations: [] })),
+  safeParsePropsResponse: vi.fn(() => ({ props: [] })),
 }))
 
 const persistMock = vi.hoisted(() => ({
@@ -30,12 +31,15 @@ const persistMock = vi.hoisted(() => ({
     newCharacters: 0,
     updatedCharacters: 0,
     newLocations: 0,
+    newProps: 0,
     skippedCharacters: 0,
     skippedLocations: 0,
+    skippedProps: 0,
   })),
-  persistAnalyzeGlobalChunk: vi.fn(async (args: { stats: { newCharacters: number; newLocations: number } }) => {
+  persistAnalyzeGlobalChunk: vi.fn(async (args: { stats: { newCharacters: number; newLocations: number; newProps: number } }) => {
     args.stats.newCharacters += 1
     args.stats.newLocations += 1
+    args.stats.newProps += 1
   }),
 }))
 
@@ -63,12 +67,14 @@ vi.mock('@/lib/workers/handlers/analyze-global-parse', () => ({
   readText: (value: unknown) => (typeof value === 'string' ? value : ''),
   safeParseCharactersResponse: parseMock.safeParseCharactersResponse,
   safeParseLocationsResponse: parseMock.safeParseLocationsResponse,
+  safeParsePropsResponse: parseMock.safeParsePropsResponse,
 }))
 vi.mock('@/lib/workers/handlers/analyze-global-prompt', () => ({
-  loadAnalyzeGlobalPromptTemplates: vi.fn(() => ({ characterTemplate: 'c', locationTemplate: 'l' })),
+  loadAnalyzeGlobalPromptTemplates: vi.fn(() => ({ characterTemplate: 'c', locationTemplate: 'l', propTemplate: 'p' })),
   buildAnalyzeGlobalPrompts: vi.fn(() => ({
     characterPrompt: 'character prompt',
     locationPrompt: 'location prompt',
+    propPrompt: 'prop prompt',
   })),
 }))
 vi.mock('@/lib/workers/handlers/analyze-global-persist', () => ({
@@ -105,7 +111,7 @@ describe('worker analyze-global behavior', () => {
       analysisModel: 'llm::analysis-1',
       globalAssetText: '全局设定',
       characters: [{ id: 'char-1', name: 'Hero', aliases: null, introduction: 'hero intro' }],
-      locations: [{ id: 'loc-1', name: 'Old Town', summary: 'old town summary' }],
+      locations: [{ id: 'loc-1', name: 'Old Town', summary: 'old town summary', assetKind: 'location' }],
       episodes: [{ id: 'ep-1', name: '第一集', novelText: 'episode text' }],
     })
   })
@@ -136,10 +142,13 @@ describe('worker analyze-global behavior', () => {
         newCharacters: 2,
         updatedCharacters: 0,
         newLocations: 2,
+        newProps: 2,
         skippedCharacters: 0,
         skippedLocations: 0,
+        skippedProps: 0,
         totalCharacters: 1,
         totalLocations: 1,
+        totalProps: 0,
       },
     })
   })

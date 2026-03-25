@@ -35,6 +35,15 @@ import { handleReferenceToCharacterTask } from './handlers/reference-to-characte
 import { handleShotAITask } from './handlers/shot-ai-tasks'
 import { handleCharacterProfileTask } from './handlers/character-profile'
 
+function readAssetKind(value: Record<string, unknown>): string {
+  return typeof value.assetKind === 'string' ? value.assetKind : 'location'
+}
+
+function readNullableText(value: Record<string, unknown>, key: string): string | null {
+  const field = value[key]
+  return typeof field === 'string' ? field : null
+}
+
 type AnyObj = Record<string, unknown>
 type JsonRecord = Record<string, unknown>
 
@@ -218,18 +227,32 @@ function parsePanelCharacters(panel: { characters: string | null } | null | unde
   }
 }
 
+function parsePanelProps(panel: Record<string, unknown> | null | undefined): string[] {
+  const rawValue = panel?.props
+  if (typeof rawValue !== 'string' || !rawValue) return []
+  try {
+    const raw = JSON.parse(rawValue)
+    if (!Array.isArray(raw)) return []
+    return raw.map((item) => (typeof item === 'string' ? item : '')).filter(Boolean)
+  } catch {
+    return []
+  }
+}
+
 async function runStoryboardPhasesForClip(params: {
   clip: {
     id: string
     content: string | null
     characters: string | null
     location: string | null
+    props?: string | null
     screenplay: string | null
   }
   novelPromotionData: {
     analysisModel: string
     characters: CharacterAsset[]
     locations: LocationAsset[]
+    props?: Array<{ name: string; summary?: string | null }>
   }
   projectId: string
   projectName: string
@@ -333,6 +356,10 @@ async function handleRegenerateStoryboardTextTask(job: Job<TaskJobData>) {
   const normalizedNovelPromotionData = {
     ...novelPromotionData,
     analysisModel: novelPromotionData.analysisModel,
+    locations: novelPromotionData.locations.filter((item) => readAssetKind(item as unknown as Record<string, unknown>) !== 'prop'),
+    props: novelPromotionData.locations
+      .filter((item) => readAssetKind(item as unknown as Record<string, unknown>) === 'prop')
+      .map((item) => ({ name: item.name, summary: item.summary })),
   }
 
   await reportTaskProgress(job, 20, { stage: 'regenerate_storyboard_prepare', storyboardId })
@@ -343,7 +370,10 @@ async function handleRegenerateStoryboardTextTask(job: Job<TaskJobData>) {
     regenerateCallbacks,
     async () =>
       await runStoryboardPhasesForClip({
-        clip: storyboard.clip,
+        clip: {
+          ...storyboard.clip,
+          props: readNullableText(storyboard.clip as unknown as Record<string, unknown>, 'props'),
+        },
         novelPromotionData: normalizedNovelPromotionData,
         projectId,
         projectName: project.name,
@@ -357,6 +387,9 @@ async function handleRegenerateStoryboardTextTask(job: Job<TaskJobData>) {
 
   await assertTaskActive(job, 'regenerate_storyboard_transaction')
   await prisma.$transaction(async (tx) => {
+    const panelModel = tx.novelPromotionPanel as unknown as {
+      create: (args: { data: Record<string, unknown> }) => Promise<unknown>
+    }
     await tx.novelPromotionPanel.deleteMany({ where: { storyboardId } })
     await tx.novelPromotionStoryboard.update({
       where: { id: storyboardId },
@@ -368,7 +401,7 @@ async function handleRegenerateStoryboardTextTask(job: Job<TaskJobData>) {
       const srtRange = Array.isArray(panel.srt_range) ? panel.srt_range : []
       const srtStart = typeof srtRange[0] === 'number' ? srtRange[0] : null
       const srtEnd = typeof srtRange[1] === 'number' ? srtRange[1] : null
-      await tx.novelPromotionPanel.create({
+      await panelModel.create({
         data: {
           storyboardId,
           panelIndex: i,
@@ -378,6 +411,7 @@ async function handleRegenerateStoryboardTextTask(job: Job<TaskJobData>) {
           description: panel.description || null,
           location: panel.location || null,
           characters: panel.characters ? JSON.stringify(panel.characters) : null,
+          props: panel.props ? JSON.stringify(panel.props) : null,
           srtStart,
           srtEnd,
           duration: panel.duration || null,
@@ -432,6 +466,8 @@ async function handleInsertPanelTask(job: Job<TaskJobData>) {
     },
   })
   if (!projectData) throw new Error('Novel promotion data not found')
+  const projectLocations = (projectData.locations || []).filter((item) => readAssetKind(item as unknown as Record<string, unknown>) !== 'prop')
+  const projectProps = (projectData.locations || []).filter((item) => readAssetKind(item as unknown as Record<string, unknown>) === 'prop')
 
   const prevPanelJson = JSON.stringify(
     {
@@ -441,6 +477,7 @@ async function handleInsertPanelTask(job: Job<TaskJobData>) {
       video_prompt: prevPanel.videoPrompt,
       location: prevPanel.location,
       characters: prevPanel.characters ? JSON.parse(prevPanel.characters) : [],
+      props: parsePanelProps(prevPanel),
       source_text: prevPanel.srtSegment,
     },
     null,
@@ -456,6 +493,7 @@ async function handleInsertPanelTask(job: Job<TaskJobData>) {
         video_prompt: nextPanel.videoPrompt,
         location: nextPanel.location,
         characters: nextPanel.characters ? JSON.parse(nextPanel.characters) : [],
+        props: parsePanelProps(nextPanel),
         source_text: nextPanel.srtSegment,
       },
       null,
@@ -465,6 +503,7 @@ async function handleInsertPanelTask(job: Job<TaskJobData>) {
 
   const relatedCharacters = Array.from(new Set([...parsePanelCharacters(prevPanel), ...parsePanelCharacters(nextPanel)]))
   const relatedLocations = Array.from(new Set([prevPanel.location, nextPanel?.location].filter((v): v is string => Boolean(v))))
+  const relatedProps = Array.from(new Set([...parsePanelProps(prevPanel), ...parsePanelProps(nextPanel)]))
 
   const charactersFullDescription = (projectData.characters || [])
     .filter((character) => relatedCharacters.length === 0 || relatedCharacters.includes(character.name))
@@ -490,13 +529,17 @@ async function handleInsertPanelTask(job: Job<TaskJobData>) {
     })
     .join('\n') || '无'
 
-  const locationsDescription = (projectData.locations || [])
+  const locationsDescription = projectLocations
     .filter((location) => relatedLocations.length === 0 || relatedLocations.includes(location.name))
     .map((location) => {
       const images = location.images || []
       const selectedImage = images.find((img) => img.isSelected) || images[0]
       return `${location.name}: ${selectedImage?.description || '无描述'}`
     })
+    .join('\n') || '无'
+  const propsDescription = projectProps
+    .filter((prop) => relatedProps.length === 0 || relatedProps.includes(prop.name))
+    .map((prop) => `${prop.name}: ${prop.summary || '无描述'}`)
     .join('\n') || '无'
 
   const prompt = buildPrompt({
@@ -508,6 +551,7 @@ async function handleInsertPanelTask(job: Job<TaskJobData>) {
       next_panel_json: nextPanelJson,
       characters_full_description: charactersFullDescription,
       locations_description: locationsDescription,
+      props_description: propsDescription,
     },
   })
 
@@ -551,6 +595,9 @@ async function handleInsertPanelTask(job: Job<TaskJobData>) {
 
   await assertTaskActive(job, 'insert_panel_transaction')
   const newPanel = await prisma.$transaction(async (tx) => {
+    const panelModel = tx.novelPromotionPanel as unknown as {
+      create: (args: { data: Record<string, unknown> }) => Promise<{ id: string; panelIndex: number }>
+    }
     // Two-phase reindexing to avoid unique constraint collision on (storyboardId, panelIndex)
     // Phase A: shift affected panels to negative indices to clear the positive namespace
     const affectedPanels = await tx.novelPromotionPanel.findMany({
@@ -572,7 +619,7 @@ async function handleInsertPanelTask(job: Job<TaskJobData>) {
       })
     }
 
-    const created = await tx.novelPromotionPanel.create({
+    const created = await panelModel.create({
       data: {
         storyboardId,
         panelIndex: prevPanel.panelIndex + 1,
@@ -583,6 +630,7 @@ async function handleInsertPanelTask(job: Job<TaskJobData>) {
         videoPrompt: generatedVideoPrompt || generatedDescription || userInput,
         location: generatedLocation || prevPanel.location,
         characters: generatedPanel.characters ? JSON.stringify(generatedPanel.characters) : prevPanel.characters,
+        props: generatedPanel.props ? JSON.stringify(generatedPanel.props) : readNullableText(prevPanel as unknown as Record<string, unknown>, 'props'),
         srtSegment: generatedSrtSegment || prevPanel.srtSegment,
         duration: generatedDuration,
       },

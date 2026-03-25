@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { Prisma } from '@prisma/client'
 import { prisma } from '@/lib/prisma'
 import { requireProjectAuth, isErrorResponse } from '@/lib/api-auth'
 import { apiHandler, ApiError } from '@/lib/api-errors'
@@ -40,7 +41,7 @@ export const POST = apiHandler(async (
   const { novelData } = authResult
 
   const body = await request.json()
-  const { name, description } = body
+  const { name, description, novelText } = body
 
   if (!name || name.trim().length === 0) {
     throw new ApiError('INVALID_PARAMS')
@@ -54,13 +55,18 @@ export const POST = apiHandler(async (
   const nextEpisodeNumber = (lastEpisode?.episodeNumber || 0) + 1
 
   // 创建剧集
+  const createData: Prisma.NovelPromotionEpisodeUncheckedCreateInput = {
+    novelPromotionProjectId: novelData.id,
+    episodeNumber: nextEpisodeNumber,
+    name: name.trim(),
+    description: description?.trim() || null,
+  }
+  if (typeof novelText === 'string') {
+    createData.novelText = novelText
+  }
+
   const episode = await prisma.novelPromotionEpisode.create({
-    data: {
-      novelPromotionProjectId: novelData.id,
-      episodeNumber: nextEpisodeNumber,
-      name: name.trim(),
-      description: description?.trim() || null
-    }
+    data: createData,
   })
 
   // 更新最后编辑的剧集ID

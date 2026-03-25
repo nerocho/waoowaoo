@@ -25,6 +25,7 @@ import {
   parseTemperature,
   persistAnalyzedCharacters,
   persistAnalyzedLocations,
+  persistAnalyzedProps,
   persistClips,
   resolveClipRecordId,
 } from './story-to-script-helpers'
@@ -33,6 +34,10 @@ import { resolveAnalysisModel } from './resolve-analysis-model'
 import { createArtifact, listArtifacts } from '@/lib/run-runtime/service'
 import { assertWorkflowRunActive, withWorkflowRunLease } from '@/lib/run-runtime/workflow-lease'
 import { parseScreenplayPayload } from './screenplay-convert-helpers'
+
+function readAssetKind(value: Record<string, unknown>): string {
+  return typeof value.assetKind === 'string' ? value.assetKind : 'location'
+}
 
 function isReasoningEffort(value: unknown): value is 'minimal' | 'low' | 'medium' | 'high' {
   return value === 'minimal' || value === 'low' || value === 'medium' || value === 'high'
@@ -132,6 +137,7 @@ export async function handleStoryToScriptTask(job: Job<TaskJobData>) {
   }
   const characterPromptTemplate = getPromptTemplate(PROMPT_IDS.NP_AGENT_CHARACTER_PROFILE, job.data.locale)
   const locationPromptTemplate = getPromptTemplate(PROMPT_IDS.NP_SELECT_LOCATION, job.data.locale)
+  const propPromptTemplate = getPromptTemplate(PROMPT_IDS.NP_SELECT_PROP, job.data.locale)
   const clipPromptTemplate = getPromptTemplate(PROMPT_IDS.NP_AGENT_CLIP, job.data.locale)
   const screenplayPromptTemplate = getPromptTemplate(PROMPT_IDS.NP_SCREENPLAY_CONVERSION, job.data.locale)
   const maxLength = 30000
@@ -286,6 +292,7 @@ export async function handleStoryToScriptTask(job: Job<TaskJobData>) {
           .replace('{clip_content}', clipContent)
           .replace('{locations_lib_name}', asString(splitPayload.locationsLibName) || '无')
           .replace('{characters_lib_name}', asString(splitPayload.charactersLibName) || '无')
+          .replace('{props_lib_name}', asString(splitPayload.propsLibName) || '无')
           .replace('{characters_introduction}', asString(splitPayload.charactersIntroduction) || '暂无角色介绍')
           .replace('{clip_id}', retryClipId)
 
@@ -350,7 +357,10 @@ export async function handleStoryToScriptTask(job: Job<TaskJobData>) {
           select: { id: true },
         })
         if (!clipRecord) {
-          clipRecord = await prisma.novelPromotionClip.create({
+          const clipModel = prisma.novelPromotionClip as unknown as {
+            create: (args: { data: Record<string, unknown>; select: { id: true } }) => Promise<{ id: string }>
+          }
+          clipRecord = await clipModel.create({
             data: {
               episodeId,
               startText: asString(retryClip.startText) || null,
@@ -358,6 +368,7 @@ export async function handleStoryToScriptTask(job: Job<TaskJobData>) {
               summary: asString(retryClip.summary),
               location: asString(retryClip.location) || null,
               characters: Array.isArray(retryClip.characters) ? JSON.stringify(retryClip.characters) : null,
+              props: Array.isArray(retryClip.props) ? JSON.stringify(retryClip.props) : null,
               content: clipContent,
             },
             select: { id: true },
@@ -402,7 +413,12 @@ export async function handleStoryToScriptTask(job: Job<TaskJobData>) {
               concurrency: workflowConcurrency.analysis,
               content,
               baseCharacters: (novelData.characters || []).map((item) => item.name),
-              baseLocations: (novelData.locations || []).map((item) => item.name),
+              baseLocations: (novelData.locations || [])
+                .filter((item) => readAssetKind(item as unknown as Record<string, unknown>) !== 'prop')
+                .map((item) => item.name),
+              baseProps: (novelData.locations || [])
+                .filter((item) => readAssetKind(item as unknown as Record<string, unknown>) === 'prop')
+                .map((item) => item.name),
               baseCharacterIntroductions: (novelData.characters || []).map((item) => ({
                 name: item.name,
                 introduction: item.introduction || '',
@@ -410,6 +426,7 @@ export async function handleStoryToScriptTask(job: Job<TaskJobData>) {
               promptTemplates: {
                 characterPromptTemplate,
                 locationPromptTemplate,
+                propPromptTemplate,
                 clipPromptTemplate,
                 screenplayPromptTemplate,
               },
@@ -443,6 +460,16 @@ export async function handleStoryToScriptTask(job: Job<TaskJobData>) {
       })
       await createArtifact({
         runId,
+        stepKey: 'analyze_props',
+        artifactType: 'analysis.props',
+        refId: episodeId,
+        payload: {
+          props: result.analyzedProps,
+          raw: result.propsObject,
+        },
+      })
+      await createArtifact({
+        runId,
         stepKey: 'split_clips',
         artifactType: 'clips.split',
         refId: episodeId,
@@ -450,6 +477,7 @@ export async function handleStoryToScriptTask(job: Job<TaskJobData>) {
           clipList: result.clipList,
           charactersLibName: result.charactersLibName,
           locationsLibName: result.locationsLibName,
+          propsLibName: result.propsLibName,
           charactersIntroduction: result.charactersIntroduction,
         },
       })
@@ -495,7 +523,14 @@ export async function handleStoryToScriptTask(job: Job<TaskJobData>) {
         (novelData.characters || []).map((item) => String(item.name || '').toLowerCase()),
       )
       const existingLocationNames = new Set<string>(
-        (novelData.locations || []).map((item) => String(item.name || '').toLowerCase()),
+        (novelData.locations || [])
+          .filter((item) => readAssetKind(item as unknown as Record<string, unknown>) !== 'prop')
+          .map((item) => String(item.name || '').toLowerCase()),
+      )
+      const existingPropNames = new Set<string>(
+        (novelData.locations || [])
+          .filter((item) => readAssetKind(item as unknown as Record<string, unknown>) === 'prop')
+          .map((item) => String(item.name || '').toLowerCase()),
       )
 
       const createdCharacters = await persistAnalyzedCharacters({
@@ -508,6 +543,11 @@ export async function handleStoryToScriptTask(job: Job<TaskJobData>) {
         projectInternalId: novelData.id,
         existingNames: existingLocationNames,
         analyzedLocations: result.analyzedLocations,
+      })
+      const createdProps = await persistAnalyzedProps({
+        projectInternalId: novelData.id,
+        existingNames: existingPropNames,
+        analyzedProps: result.analyzedProps,
       })
 
       const createdClipRows = await persistClips({
@@ -541,6 +581,7 @@ export async function handleStoryToScriptTask(job: Job<TaskJobData>) {
         screenplayFailedCount: result.summary.screenplayFailedCount,
         persistedCharacters: createdCharacters.length,
         persistedLocations: createdLocations.length,
+        persistedProps: createdProps.length,
         persistedClips: createdClipRows.length,
       }
     },

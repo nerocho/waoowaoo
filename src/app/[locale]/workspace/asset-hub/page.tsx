@@ -9,7 +9,7 @@ import { useQueryClient } from '@tanstack/react-query'
 import Navbar from '@/components/Navbar'
 import { FolderSidebar } from './components/FolderSidebar'
 import { AssetGrid } from './components/AssetGrid'
-import { CharacterCreationModal, LocationCreationModal, CharacterEditModal, LocationEditModal } from '@/components/shared/assets'
+import { CharacterCreationModal, LocationCreationModal, PropCreationModal, CharacterEditModal, LocationEditModal, PropEditModal } from '@/components/shared/assets'
 import { FolderModal } from './components/FolderModal'
 import ImagePreviewModal from '@/components/ui/ImagePreviewModal'
 import ImageEditModal from '@/app/[locale]/workspace/[projectId]/modes/novel-promotion/components/assets/ImageEditModal'
@@ -17,14 +17,11 @@ import VoiceDesignDialog from './components/VoiceDesignDialog'
 import VoiceCreationModal from './components/VoiceCreationModal'
 import VoicePickerDialog from './components/VoicePickerDialog'
 import {
-    useGlobalCharacters,
-    useGlobalLocations,
-    useGlobalVoices,
+    useAssets,
+    useAssetActions,
+    useRefreshAssets,
     useGlobalFolders,
     useSSE,
-    useModifyCharacterImage,
-    useModifyLocationImage,
-    type GlobalCharacter,
 } from '@/lib/query/hooks'
 import { queryKeys } from '@/lib/query/keys'
 import { AppIcon } from '@/components/ui/icons'
@@ -42,20 +39,21 @@ export default function AssetHubPage() {
 
     // 使用 React Query 获取数据
     const { data: folders = [], isLoading: foldersLoading } = useGlobalFolders()
-    const { data: characters = [], isLoading: charactersLoading } = useGlobalCharacters(selectedFolderId)
-    const { data: locations = [], isLoading: locationsLoading } = useGlobalLocations(selectedFolderId)
-    const { data: voices = [], isLoading: voicesLoading } = useGlobalVoices(selectedFolderId)
+    const { data: assets = [], isLoading: assetsLoading } = useAssets({
+        scope: 'global',
+        folderId: selectedFolderId,
+    })
+    const characterActions = useAssetActions({ scope: 'global', kind: 'character' })
+    const locationActions = useAssetActions({ scope: 'global', kind: 'location' })
+    const refreshAssets = useRefreshAssets({ scope: 'global' })
 
-    const loading = foldersLoading || charactersLoading || locationsLoading || voicesLoading
+    const loading = foldersLoading || assetsLoading
     useSSE({ projectId: 'global-asset-hub', enabled: true })
-
-    // Mutation hooks
-    const modifyCharacterImage = useModifyCharacterImage()
-    const modifyLocationImage = useModifyLocationImage()
 
     // 弹窗状态
     const [showAddCharacter, setShowAddCharacter] = useState(false)
     const [showAddLocation, setShowAddLocation] = useState(false)
+    const [showAddProp, setShowAddProp] = useState(false)
     const [showFolderModal, setShowFolderModal] = useState(false)
     const [editingFolder, setEditingFolder] = useState<{ id: string; name: string } | null>(null)
     const [previewImage, setPreviewImage] = useState<string | null>(null)
@@ -98,6 +96,12 @@ export default function AssetHubPage() {
         imageIndex: number
         artStyle: string | null
         description: string
+    } | null>(null)
+    const [propEditModal, setPropEditModal] = useState<{
+        propId: string
+        propName: string
+        summary: string
+        variantId?: string
     } | null>(null)
 
     // 创建文件夹
@@ -167,38 +171,34 @@ export default function AssetHubPage() {
         setImageEditModal(null)
 
         if (type === 'character' && appearanceIndex !== undefined) {
-            modifyCharacterImage.mutate({
-                characterId: id,
+            void characterActions.modifyRender({
+                id,
                 appearanceIndex,
                 imageIndex,
                 modifyPrompt,
                 extraImageUrls
-            }, {
-                onError: () => {
-                    alert(t('editFailed'))
-                }
+            }).catch(() => {
+                alert(t('editFailed'))
             })
         } else if (type === 'location') {
-            modifyLocationImage.mutate({
-                locationId: id,
+            void locationActions.modifyRender({
+                id,
                 imageIndex,
                 modifyPrompt,
                 extraImageUrls
-            }, {
-                onError: () => {
-                    alert(t('editFailed'))
-                }
+            }).catch(() => {
+                alert(t('editFailed'))
             })
         }
     }
 
     // 打开 AI 声音设计对话框
     const handleOpenVoiceDesign = (characterId: string, characterName: string) => {
-        const character = characters.find(c => c.id === characterId)
+        const character = assets.find((asset) => asset.kind === 'character' && asset.id === characterId)
         setVoiceDesignCharacter({
             id: characterId,
             name: characterName,
-            hasExistingVoice: !!character?.customVoiceUrl
+            hasExistingVoice: character?.kind === 'character' ? !!character.voice.customVoiceUrl : false,
         })
     }
 
@@ -220,6 +220,7 @@ export default function AssetHubPage() {
             if (res.ok) {
                 alert(t('voiceDesignSaved', { name: voiceDesignCharacter.name }))
                 queryClient.invalidateQueries({ queryKey: queryKeys.globalAssets.characters() })
+                refreshAssets()
             } else {
                 const data = await res.json()
                 alert(
@@ -236,8 +237,23 @@ export default function AssetHubPage() {
 
     // 打开角色编辑弹窗
     const handleOpenCharacterEdit = (character: unknown, appearance: unknown) => {
-        const typedCharacter = character as GlobalCharacter
-        const typedAppearance = appearance as GlobalCharacter['appearances'][0]
+        const typedCharacter = character as {
+            id: string
+            name: string
+            appearances: Array<{
+                id: string
+                appearanceIndex: number
+                changeReason: string
+                description: string | null
+            }>
+        }
+        const typedAppearance = appearance as {
+            id: string
+            appearanceIndex: number
+            changeReason: string
+            artStyle?: string | null
+            description: string | null
+        }
         setCharacterEditModal({
             characterId: typedCharacter.id,
             characterName: typedCharacter.name,
@@ -269,21 +285,32 @@ export default function AssetHubPage() {
         })
     }
 
+    const handleOpenPropEdit = (prop: unknown, imageIndex: number) => {
+        const typedProp = prop as {
+            id: string
+            name: string
+            summary: string | null
+            images: Array<{ id: string; imageIndex: number }>
+        }
+        const variant = typedProp.images.find((image) => image.imageIndex === imageIndex)
+        setPropEditModal({
+            propId: typedProp.id,
+            propName: typedProp.name,
+            summary: typedProp.summary || '',
+            variantId: variant?.id,
+        })
+    }
+
     // 角色编辑后触发生成
     const handleCharacterEditGenerate = async () => {
         if (!characterEditModal) return
 
         try {
-            await apiFetch('/api/asset-hub/generate-image', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    type: 'character',
-                    id: characterEditModal.characterId,
-                    appearanceIndex: characterEditModal.appearanceIndex,
-                    artStyle: characterEditModal.artStyle || undefined,
-                    count: characterGenerationCount,
-                })
+            await characterActions.generate({
+                id: characterEditModal.characterId,
+                appearanceIndex: characterEditModal.appearanceIndex,
+                artStyle: characterEditModal.artStyle || undefined,
+                count: characterGenerationCount,
             })
             queryClient.invalidateQueries({ queryKey: queryKeys.globalAssets.characters() })
         } catch (error) {
@@ -296,15 +323,10 @@ export default function AssetHubPage() {
         if (!locationEditModal) return
 
         try {
-            await apiFetch('/api/asset-hub/generate-image', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    type: 'location',
-                    id: locationEditModal.locationId,
-                    artStyle: locationEditModal.artStyle || undefined,
-                    count: locationGenerationCount,
-                })
+            await locationActions.generate({
+                id: locationEditModal.locationId,
+                artStyle: locationEditModal.artStyle || undefined,
+                count: locationGenerationCount,
             })
             queryClient.invalidateQueries({ queryKey: queryKeys.globalAssets.locations() })
         } catch (error) {
@@ -317,26 +339,13 @@ export default function AssetHubPage() {
         if (!voicePickerCharacterId) return
 
         try {
-            const res = await apiFetch(`/api/asset-hub/characters/${voicePickerCharacterId}`, {
-                method: 'PATCH',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    globalVoiceId: voice.id,
-                    customVoiceUrl: voice.customVoiceUrl
-                })
+            await characterActions.bindVoice({
+                characterId: voicePickerCharacterId,
+                globalVoiceId: voice.id,
+                customVoiceUrl: voice.customVoiceUrl,
             })
-
-            if (res.ok) {
-                queryClient.invalidateQueries({ queryKey: queryKeys.globalAssets.characters() })
-                setVoicePickerCharacterId(null)
-            } else {
-                const data = await res.json()
-                alert(
-                    typeof data.error === 'string'
-                        ? t('bindVoiceFailedDetail', { error: data.error })
-                        : t('bindVoiceFailed'),
-                )
-            }
+            queryClient.invalidateQueries({ queryKey: queryKeys.globalAssets.characters() })
+            setVoicePickerCharacterId(null)
         } catch (error) {
             _ulogError('绑定音色失败:', error)
             alert(t('bindVoiceFailed'))
@@ -349,27 +358,45 @@ export default function AssetHubPage() {
         const imageEntries: Array<{ filename: string; url: string }> = []
 
         // 角色图片：每个角色每个外貌的当前选中图
-        for (const character of characters) {
-            for (const appearance of character.appearances) {
-                const url = appearance.imageUrl
+        for (const asset of assets) {
+            if (asset.kind !== 'character') continue
+            for (const variant of asset.variants) {
+                const selectedRender = variant.renders.find((render) => render.isSelected) ?? variant.renders[0]
+                const url = selectedRender?.imageUrl
                 if (!url) continue
-                const safeName = character.name.replace(/[/\\:*?"<>|]/g, '_')
-                const filename = appearance.appearanceIndex === 0
+                const safeName = asset.name.replace(/[/\\:*?"<>|]/g, '_')
+                const filename = variant.index === 0
                     ? `characters/${safeName}.jpg`
-                    : `characters/${safeName}_appearance${appearance.appearanceIndex}.jpg`
+                    : `characters/${safeName}_appearance${variant.index}.jpg`
                 imageEntries.push({ filename, url })
             }
         }
 
         // 场景图片：每个场景的选中图
-        for (const location of locations) {
-            for (const image of location.images) {
-                const url = image.imageUrl
+        for (const asset of assets) {
+            if (asset.kind !== 'location') continue
+            for (const variant of asset.variants) {
+                const render = variant.renders[0]
+                const url = render?.imageUrl
                 if (!url) continue
-                const safeName = location.name.replace(/[/\\:*?"<>|]/g, '_')
-                const filename = location.images.length <= 1
+                const safeName = asset.name.replace(/[/\\:*?"<>|]/g, '_')
+                const filename = asset.variants.length <= 1
                     ? `locations/${safeName}.jpg`
-                    : `locations/${safeName}_${image.imageIndex + 1}.jpg`
+                    : `locations/${safeName}_${variant.index + 1}.jpg`
+                imageEntries.push({ filename, url })
+            }
+        }
+
+        for (const asset of assets) {
+            if (asset.kind !== 'prop') continue
+            for (const variant of asset.variants) {
+                const render = variant.renders[0]
+                const url = render?.imageUrl
+                if (!url) continue
+                const safeName = asset.name.replace(/[/\\:*?"<>|]/g, '_')
+                const filename = asset.variants.length <= 1
+                    ? `props/${safeName}.jpg`
+                    : `props/${safeName}_${variant.index + 1}.jpg`
                 imageEntries.push({ filename, url })
             }
         }
@@ -446,12 +473,11 @@ export default function AssetHubPage() {
 
                     {/* 右侧资产网格 */}
                     <AssetGrid
-                        characters={characters}
-                        locations={locations}
-                        voices={voices}
+                        assets={assets}
                         loading={loading}
                         onAddCharacter={() => setShowAddCharacter(true)}
                         onAddLocation={() => setShowAddLocation(true)}
+                        onAddProp={() => setShowAddProp(true)}
                         onAddVoice={() => setShowAddVoice(true)}
                         onDownloadAll={handleDownloadAll}
                         isDownloading={isDownloading}
@@ -461,6 +487,7 @@ export default function AssetHubPage() {
                         onVoiceDesign={handleOpenVoiceDesign}
                         onCharacterEdit={handleOpenCharacterEdit}
                         onLocationEdit={handleOpenLocationEdit}
+                        onPropEdit={handleOpenPropEdit}
                         onVoiceSelect={(characterId) => setVoicePickerCharacterId(characterId)}
                     />
                 </div>
@@ -475,6 +502,7 @@ export default function AssetHubPage() {
                     onSuccess={() => {
                         setShowAddCharacter(false)
                         queryClient.invalidateQueries({ queryKey: queryKeys.globalAssets.characters() })
+                        refreshAssets()
                     }}
                 />
             )}
@@ -488,6 +516,19 @@ export default function AssetHubPage() {
                     onSuccess={() => {
                         setShowAddLocation(false)
                         queryClient.invalidateQueries({ queryKey: queryKeys.globalAssets.locations() })
+                        refreshAssets()
+                    }}
+                />
+            )}
+
+            {showAddProp && (
+                <PropCreationModal
+                    mode="asset-hub"
+                    folderId={selectedFolderId}
+                    onClose={() => setShowAddProp(false)}
+                    onSuccess={() => {
+                        setShowAddProp(false)
+                        refreshAssets()
                     }}
                 />
             )}
@@ -568,6 +609,18 @@ export default function AssetHubPage() {
                 />
             )}
 
+            {propEditModal && (
+                <PropEditModal
+                    mode="asset-hub"
+                    propId={propEditModal.propId}
+                    propName={propEditModal.propName}
+                    summary={propEditModal.summary}
+                    variantId={propEditModal.variantId}
+                    onClose={() => setPropEditModal(null)}
+                    onRefresh={refreshAssets}
+                />
+            )}
+
             {/* 新建音色弹窗 */}
             {showAddVoice && (
                 <VoiceCreationModal
@@ -577,6 +630,7 @@ export default function AssetHubPage() {
                     onSuccess={() => {
                         setShowAddVoice(false)
                         queryClient.invalidateQueries({ queryKey: queryKeys.globalAssets.voices() })
+                        refreshAssets()
                     }}
                 />
             )}

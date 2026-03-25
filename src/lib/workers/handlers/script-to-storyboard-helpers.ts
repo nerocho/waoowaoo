@@ -19,6 +19,7 @@ export type PersistedStoryboard = {
     description: string | null
     srtSegment: string | null
     characters: string | null
+    props: string | null
   }>
 }
 
@@ -49,6 +50,17 @@ function parsePanelCharacters(raw: string | null): string[] {
   }
 }
 
+function parseStringArray(raw: string | null): string[] {
+  if (!raw) return []
+  try {
+    const parsed = JSON.parse(raw)
+    if (!Array.isArray(parsed)) return []
+    return parsed.map((item) => (typeof item === 'string' ? item : '')).filter(Boolean)
+  } catch {
+    return []
+  }
+}
+
 export function parseVoiceLinesJson(responseText: string): JsonRecord[] {
   const rows = safeParseJsonArray(responseText)
   if (rows.length === 0) {
@@ -72,6 +84,7 @@ export function buildStoryboardJson(storyboards: PersistedStoryboard[]) {
     text_segment: string
     description: string
     characters: string[]
+    props: string[]
   }> = []
 
   for (const storyboard of storyboards) {
@@ -82,6 +95,7 @@ export function buildStoryboardJson(storyboards: PersistedStoryboard[]) {
         text_segment: panel.srtSegment || '',
         description: panel.description || '',
         characters: parsePanelCharacters(panel.characters),
+        props: parseStringArray(panel.props),
       })
     }
   }
@@ -95,6 +109,14 @@ export async function persistStoryboardsAndPanels(params: {
   clipPanels: ClipPanelsResult[]
 }) {
   const { episodeId, clipPanels } = params
+  type PanelRow = {
+    id: string
+    panelIndex: number
+    description: string | null
+    srtSegment: string | null
+    characters: string | null
+    props: string | null
+  }
   return await prisma.$transaction(async (tx) => {
     const persisted: PersistedStoryboard[] = []
     for (const clipEntry of clipPanels) {
@@ -117,10 +139,23 @@ export async function persistStoryboardsAndPanels(params: {
         where: { storyboardId: storyboard.id },
       })
 
+      const panelModel = tx.novelPromotionPanel as unknown as {
+        create: (args: {
+          data: Record<string, unknown>
+          select: {
+            id: true
+            panelIndex: true
+            description: true
+            srtSegment: true
+            characters: true
+            props: true
+          }
+        }) => Promise<PanelRow>
+      }
       const persistedPanels: PersistedStoryboard['panels'] = []
       for (let i = 0; i < clipEntry.finalPanels.length; i += 1) {
         const panel = clipEntry.finalPanels[i]
-        const created = await tx.novelPromotionPanel.create({
+        const created = await panelModel.create({
           data: {
             storyboardId: storyboard.id,
             panelIndex: i,
@@ -131,6 +166,7 @@ export async function persistStoryboardsAndPanels(params: {
             videoPrompt: panel.video_prompt || null,
             location: panel.location || null,
             characters: panel.characters ? JSON.stringify(panel.characters) : null,
+            props: panel.props ? JSON.stringify(panel.props) : null,
             srtSegment: panel.source_text || null,
             photographyRules: panel.photographyPlan ? JSON.stringify(panel.photographyPlan) : null,
             actingNotes: panel.actingNotes ? JSON.stringify(panel.actingNotes) : null,
@@ -142,6 +178,7 @@ export async function persistStoryboardsAndPanels(params: {
             description: true,
             srtSegment: true,
             characters: true,
+            props: true,
           },
         })
         persistedPanels.push(created)

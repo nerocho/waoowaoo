@@ -19,7 +19,7 @@ type LocationCardActionsProps =
     mode: 'compact'
     currentImageUrl: string | null | undefined
     isTaskRunning: boolean
-    hasDescription: boolean
+    canGenerate: boolean
     generationCount: number
     onGenerationCountChange: (value: number) => void
     onGenerate: (count?: number) => void
@@ -67,7 +67,7 @@ export default function LocationCardActions(props: LocationCardActionsProps) {
         options={getImageGenerationCountOptions('location')}
         onValueChange={props.onGenerationCountChange}
         onClick={() => props.onGenerate(props.generationCount)}
-        disabled={!props.hasDescription}
+        disabled={!props.canGenerate}
         ariaLabel={t('image.selectCount')}
         className="glass-btn-base glass-btn-primary flex w-full items-center justify-center gap-1 py-1 text-xs disabled:opacity-50"
         selectClassName="appearance-none bg-transparent border-0 pl-0 pr-3 text-xs font-semibold text-current outline-none cursor-pointer leading-none transition-colors"

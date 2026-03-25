@@ -123,8 +123,8 @@
       "5_4": "Horizontal · Banner",
       "21_9": "Ultra‑wide · Cinema feel"
     },
-    "visualStyle": "Visual Style",
-    "visualStyleHint": "Pick a style that matches your audience — e.g. Realistic for live‑action, Anime for 2D content",
+    "visualStyle": "Art Style",
+    "visualStyleHint": "Choose an art style that fits your project — e.g. Realistic for live-action, Anime for 2D content",
     "currentConfigSummary": "Current config: {ratio} · {style}. All subsequent generations will use this combo.",
     "assetLibraryRatioNote": "Asset library ratios are not affected",
     "moreConfig": "For more configuration options, click the 「 Settings」 button in the top right",
@@ -134,7 +134,16 @@
     },
     "creating": "AI Creating...",
     "ready": "✓ Configuration complete, ready for next step",
-    "pleaseInput": "Please enter script content first"
+    "pleaseInput": "Please enter script content first",
+    "longTextDetection": {
+      "title": "🚀 Smart Episode Splitting Recommended",
+      "description": "Detected ~{count} characters. Processing long text as a single episode may reduce output quality.",
+      "strongRecommend": "We strongly recommend using Smart Split. AI will automatically identify chapters, split into episodes, and process them in parallel for significantly better results.",
+      "continueAnyway": "Continue as single episode",
+      "smartSplit": "Smart Split",
+      "smartSplitRecommend": "Recommended",
+      "singleEpisodeWarning": "All content will be processed as one episode"
+    }
   },
   "execution": {
     "selectEpisode": "Please select an episode first",

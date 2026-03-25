@@ -1,21 +1,31 @@
 import { useMutation, useQueryClient } from '@tanstack/react-query'
 import type { Project } from '@/types/project'
-import { queryKeys } from '../keys'
 import { resolveTaskResponse } from '@/lib/task/client'
+import { queryKeys } from '../keys'
 import {
   invalidateQueryTemplates,
   requestJsonWithError,
   requestTaskResponseWithError,
 } from './mutation-shared'
 
-export function useAnalyzeProjectGlobalAssets(projectId: string) {
-    const queryClient = useQueryClient()
-    const invalidateProjectAssets = () =>
-        invalidateQueryTemplates(queryClient, [queryKeys.projectAssets.all(projectId)])
+type AsyncTaskSubmission = {
+    async: true
+    taskId: string
+    runId?: string | null
+    status?: string | null
+    deduped?: boolean
+}
 
+function isAsyncTaskSubmission(value: unknown): value is AsyncTaskSubmission {
+    if (!value || typeof value !== 'object') return false
+    const payload = value as Record<string, unknown>
+    return payload.async === true && typeof payload.taskId === 'string' && payload.taskId.length > 0
+}
+
+export function useAnalyzeProjectGlobalAssets(projectId: string) {
     return useMutation({
         mutationFn: async () => {
-            const res = await requestTaskResponseWithError(
+            const response = await requestTaskResponseWithError(
                 `/api/novel-promotion/${projectId}/analyze-global`,
                 {
                     method: 'POST',
@@ -24,9 +34,12 @@ export function useAnalyzeProjectGlobalAssets(projectId: string) {
                 },
                 'Failed to analyze global assets',
             )
-            return resolveTaskResponse<{ stats?: { newCharacters?: number; newLocations?: number } }>(res)
+            const data = await response.json().catch(() => null)
+            if (!isAsyncTaskSubmission(data)) {
+                throw new Error('Failed to submit global asset analysis task')
+            }
+            return data
         },
-        onSuccess: invalidateProjectAssets,
     })
 }
 
@@ -45,14 +58,18 @@ export function useCopyProjectAssetFromGlobal(projectId: string) {
             targetId,
             globalAssetId,
         }: {
-            type: 'character' | 'location' | 'voice'
+            type: 'character' | 'location' | 'prop' | 'voice'
             targetId: string
             globalAssetId: string
         }) => {
-            return await requestJsonWithError(`/api/novel-promotion/${projectId}/copy-from-global`, {
+            return await requestJsonWithError(`/api/assets/${targetId}/copy`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ type, targetId, globalAssetId }),
+                body: JSON.stringify({
+                    kind: type,
+                    projectId,
+                    globalAssetId,
+                }),
             }, 'Failed to copy from global')
         },
         onSuccess: invalidateProjectAssets,

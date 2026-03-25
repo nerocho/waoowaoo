@@ -1,6 +1,7 @@
 {
     "selectCharacter": "Select Character from Asset Hub",
     "selectLocation": "Select Location from Asset Hub",
+    "selectProp": "Select Prop from Asset Hub",
     "selectVoice": "Select Voice from Asset Hub",
     "searchPlaceholder": "Search by name or folder...",
     "noAssets": "No assets in Asset Hub",

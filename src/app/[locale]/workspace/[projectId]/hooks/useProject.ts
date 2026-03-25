@@ -96,7 +96,8 @@ export function useProject(projectId: string) {
               novelPromotionData: {
                 ...prev.novelPromotionData,
                 characters: assets.characters || [],
-                locations: assets.locations || []
+                locations: assets.locations || [],
+                props: assets.props || [],
               }
             }
           })

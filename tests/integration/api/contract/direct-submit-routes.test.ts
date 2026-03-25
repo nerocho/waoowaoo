@@ -288,11 +288,12 @@ vi.mock('@/lib/prisma', () => ({
   prisma: prismaMock,
 }))
 
-function toApiPath(routeFile: string): string {
+function toApiPath(routeFile: string, params?: Record<string, string>): string {
   return routeFile
     .replace(/^src\/app/, '')
     .replace(/\/route\.ts$/, '')
-    .replace('[projectId]', 'project-1')
+    .replace('[projectId]', params?.projectId || 'project-1')
+    .replace('[assetId]', params?.assetId || 'asset-1')
 }
 
 function toModuleImportPath(routeFile: string): string {
@@ -320,6 +321,62 @@ const DIRECT_CASES: ReadonlyArray<DirectRouteCase> = [
     expectedTaskType: TASK_TYPE.ASSET_HUB_MODIFY,
     expectedTargetType: 'GlobalCharacterAppearance',
     expectedProjectId: 'global-asset-hub',
+  },
+  {
+    routeFile: 'src/app/api/assets/[assetId]/generate/route.ts',
+    body: {
+      scope: 'global',
+      kind: 'character',
+      appearanceIndex: 0,
+      artStyle: 'realistic',
+    },
+    params: { assetId: 'global-character-1' },
+    expectedTaskType: TASK_TYPE.ASSET_HUB_IMAGE,
+    expectedTargetType: 'GlobalCharacter',
+    expectedProjectId: 'global-asset-hub',
+  },
+  {
+    routeFile: 'src/app/api/assets/[assetId]/generate/route.ts',
+    body: {
+      scope: 'project',
+      kind: 'character',
+      projectId: 'project-1',
+      appearanceId: 'appearance-1',
+    },
+    params: { assetId: 'character-1' },
+    expectedTaskType: TASK_TYPE.IMAGE_CHARACTER,
+    expectedTargetType: 'CharacterAppearance',
+    expectedProjectId: 'project-1',
+  },
+  {
+    routeFile: 'src/app/api/assets/[assetId]/modify-render/route.ts',
+    body: {
+      scope: 'global',
+      kind: 'character',
+      modifyPrompt: 'sharpen details',
+      appearanceIndex: 0,
+      imageIndex: 0,
+      extraImageUrls: ['https://example.com/ref-a.png'],
+    },
+    params: { assetId: 'global-character-1' },
+    expectedTaskType: TASK_TYPE.ASSET_HUB_MODIFY,
+    expectedTargetType: 'GlobalCharacterAppearance',
+    expectedProjectId: 'global-asset-hub',
+  },
+  {
+    routeFile: 'src/app/api/assets/[assetId]/modify-render/route.ts',
+    body: {
+      scope: 'project',
+      kind: 'character',
+      projectId: 'project-1',
+      appearanceId: 'appearance-1',
+      modifyPrompt: 'enhance texture',
+      extraImageUrls: ['https://example.com/ref-b.png'],
+    },
+    params: { assetId: 'character-1' },
+    expectedTaskType: TASK_TYPE.MODIFY_ASSET_IMAGE,
+    expectedTargetType: 'CharacterAppearance',
+    expectedProjectId: 'project-1',
   },
   {
     routeFile: 'src/app/api/asset-hub/voice-design/route.ts',
@@ -466,7 +523,7 @@ async function invokePostRoute(routeCase: DirectRouteCase): Promise<Response> {
   const mod = await import(modulePath)
   const post = mod.POST as (request: Request, context?: RouteContext) => Promise<Response>
   const req = buildMockRequest({
-    path: toApiPath(routeCase.routeFile),
+    path: toApiPath(routeCase.routeFile, routeCase.params),
     method: 'POST',
     body: routeCase.body,
   })
@@ -486,7 +543,7 @@ describe('api contract - direct submit routes (behavior)', () => {
   })
 
   it('keeps expected coverage size', () => {
-    expect(DIRECT_CASES.length).toBe(16)
+    expect(DIRECT_CASES.length).toBe(20)
   })
 
   for (const routeCase of DIRECT_CASES) {

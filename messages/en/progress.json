@@ -125,6 +125,7 @@
   "streamStep": {
     "analyzeCharacters": "Analyze characters",
     "analyzeLocations": "Analyze locations",
+    "analyzeProps": "Analyze props",
     "splitClips": "Split clips",
     "screenplayConversion": "Convert screenplay",
     "storyboardPlan": "Plan storyboard",

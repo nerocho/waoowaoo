@@ -139,27 +139,25 @@
 }
 
 /* Page Transition Animation - 页面切换动画 */
+/* 注意：不可使用 transform，因为子组件中有 fixed 定位元素（如 StoryboardStageShell 的悬浮按钮），
+   transform 会创建新的 containing block 导致 fixed 失效并产生跳动 */
 @keyframes pageSlideIn {
   from {
     opacity: 0;
-    transform: translateY(20px);
   }
 
   to {
     opacity: 1;
-    transform: translateY(0);
   }
 }
 
 @keyframes pageSlideOut {
   from {
     opacity: 1;
-    transform: translateY(0);
   }
 
   to {
     opacity: 0;
-    transform: translateY(-20px);
   }
 }
 

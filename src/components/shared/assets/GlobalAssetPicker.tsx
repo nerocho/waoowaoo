@@ -13,7 +13,7 @@ interface GlobalAssetPickerProps {
     isOpen: boolean
     onClose: () => void
     onSelect: (globalAssetId: string) => void
-    type: 'character' | 'location' | 'voice'
+    type: 'character' | 'location' | 'prop' | 'voice'
     loading?: boolean
 }
 
@@ -46,6 +46,8 @@ interface GlobalLocation {
     folderId: string | null
     images: GlobalLocationImage[]
 }
+
+type GlobalProp = GlobalLocation
 
 interface GlobalVoice {
     id: string
@@ -117,41 +119,54 @@ export default function GlobalAssetPicker({
     const charactersQuery = useQuery({
         queryKey: ['global-assets', 'characters'],
         queryFn: async () => {
-            const res = await apiFetch('/api/asset-hub/characters')
+            const res = await apiFetch('/api/assets?scope=global&kind=character')
             if (!res.ok) throw new Error('Failed to fetch characters')
             const data = await res.json()
-            return data.characters as GlobalCharacter[]
+            return data.assets as GlobalCharacter[]
         },
         enabled: type === 'character',
     })
     const locationsQuery = useQuery({
         queryKey: ['global-assets', 'locations'],
         queryFn: async () => {
-            const res = await apiFetch('/api/asset-hub/locations')
+            const res = await apiFetch('/api/assets?scope=global&kind=location')
             if (!res.ok) throw new Error('Failed to fetch locations')
             const data = await res.json()
-            return data.locations as GlobalLocation[]
+            return data.assets as GlobalLocation[]
         },
         enabled: type === 'location',
+    })
+    const propsQuery = useQuery({
+        queryKey: ['global-assets', 'props'],
+        queryFn: async () => {
+            const res = await apiFetch('/api/assets?scope=global&kind=prop')
+            if (!res.ok) throw new Error('Failed to fetch props')
+            const data = await res.json()
+            return data.assets as GlobalProp[]
+        },
+        enabled: type === 'prop',
     })
     const voicesQuery = useQuery({
         queryKey: ['global-assets', 'voices'],
         queryFn: async () => {
-            const res = await apiFetch('/api/asset-hub/voices')
+            const res = await apiFetch('/api/assets?scope=global&kind=voice')
             if (!res.ok) throw new Error('Failed to fetch voices')
             const data = await res.json()
-            return data.voices as GlobalVoice[]
+            return data.assets as GlobalVoice[]
         },
         enabled: type === 'voice',
     })
 
     const characters = (charactersQuery.data || []) as GlobalCharacter[]
     const locations = (locationsQuery.data || []) as GlobalLocation[]
+    const props = (propsQuery.data || []) as GlobalProp[]
     const voices = (voicesQuery.data || []) as GlobalVoice[]
     const isLoading = type === 'character'
         ? charactersQuery.isFetching
         : type === 'location'
             ? locationsQuery.isFetching
+            : type === 'prop'
+                ? propsQuery.isFetching
             : voicesQuery.isFetching
     const loadingState = isLoading
         ? resolveTaskPresentationState({
@@ -179,6 +194,7 @@ export default function GlobalAssetPicker({
     // 提取稳定的 refetch 引用，避免 useEffect 无限循环
     const refetchCharacters = charactersQuery.refetch
     const refetchLocations = locationsQuery.refetch
+    const refetchProps = propsQuery.refetch
     const refetchVoices = voicesQuery.refetch
 
     // 停止音频播放的辅助函数
@@ -200,6 +216,8 @@ export default function GlobalAssetPicker({
                 refetchCharacters()
             } else if (type === 'location') {
                 refetchLocations()
+            } else if (type === 'prop') {
+                refetchProps()
             } else {
                 refetchVoices()
             }
@@ -222,6 +240,10 @@ export default function GlobalAssetPicker({
     )
 
     const filteredLocations = locations.filter(l =>
+        l.name.toLowerCase().includes(searchQuery.toLowerCase())
+    )
+
+    const filteredProps = props.filter(l =>
         l.name.toLowerCase().includes(searchQuery.toLowerCase())
     )
 
@@ -263,8 +285,20 @@ export default function GlobalAssetPicker({
 
     if (!isOpen) return null
 
-    const items = type === 'character' ? filteredCharacters : type === 'location' ? filteredLocations : filteredVoices
-    const hasNoAssets = type === 'character' ? characters.length === 0 : type === 'location' ? locations.length === 0 : voices.length === 0
+    const items = type === 'character'
+        ? filteredCharacters
+        : type === 'location'
+            ? filteredLocations
+            : type === 'prop'
+                ? filteredProps
+                : filteredVoices
+    const hasNoAssets = type === 'character'
+        ? characters.length === 0
+        : type === 'location'
+            ? locations.length === 0
+            : type === 'prop'
+                ? props.length === 0
+                : voices.length === 0
 
     return (
         <div className="fixed inset-0 glass-overlay flex items-center justify-center z-50">
@@ -272,7 +306,7 @@ export default function GlobalAssetPicker({
                 {/* 头部 */}
                 <div className="flex items-center justify-between px-6 py-4 border-b border-[var(--glass-stroke-base)]">
                     <h2 className="text-lg font-semibold text-[var(--glass-text-primary)]">
-                        {type === 'character' ? t('selectCharacter') : type === 'location' ? t('selectLocation') : t('selectVoice')}
+                        {type === 'character' ? t('selectCharacter') : type === 'location' ? t('selectLocation') : type === 'prop' ? t('selectProp') : t('selectVoice')}
                     </h2>
                     <button onClick={onClose} className="glass-btn-base glass-btn-soft text-[var(--glass-text-tertiary)]">
                         <XMarkIcon className="w-5 h-5" />
@@ -303,7 +337,7 @@ export default function GlobalAssetPicker({
                         <div className="flex flex-col items-center justify-center h-40 text-[var(--glass-text-tertiary)]">
                             {type === 'character' ? (
                                 <UserIcon className="w-12 h-12 mb-2" />
-                            ) : type === 'location' ? (
+                            ) : type === 'location' || type === 'prop' ? (
                                 <PhotoIcon className="w-12 h-12 mb-2" />
                             ) : (
                                 <MicrophoneIcon className="w-12 h-12 mb-2" />
@@ -407,6 +441,48 @@ export default function GlobalAssetPicker({
                                                 <p className="font-medium text-sm text-[var(--glass-text-primary)] truncate">{loc.name}</p>
                                                 <p className="text-xs text-[var(--glass-text-secondary)] mt-1">
                                                     {loc.images?.length || 0} {t('images')}
+                                                </p>
+                                            </div>
+                                        </div>
+                                    )
+                                })
+                            ) : type === 'prop' ? (
+                                filteredProps.map((prop) => {
+                                    const propPreview = getLocationPreview(prop)
+                                    return (
+                                        <div
+                                            key={prop.id}
+                                            onClick={() => setSelectedId(prop.id)}
+                                            className={`relative cursor-pointer rounded-xl border-2 p-2 transition-all hover:shadow-md ${selectedId === prop.id
+                                                ? 'border-[var(--glass-stroke-focus)] bg-[var(--glass-tone-info-bg)]'
+                                                : 'border-[var(--glass-stroke-base)] hover:border-[var(--glass-stroke-focus)]'
+                                                }`}
+                                        >
+                                            {selectedId === prop.id && (
+                                                <CheckCircleIcon className="absolute -top-2 -right-2 w-6 h-6 text-[var(--glass-tone-info-fg)] bg-[var(--glass-bg-surface)] rounded-full" />
+                                            )}
+                                            <div className="aspect-video rounded-lg overflow-hidden bg-[var(--glass-bg-muted)] mb-2 relative">
+                                                {propPreview ? (
+                                                    <MediaImageWithLoading
+                                                        src={propPreview}
+                                                        alt={prop.name}
+                                                        containerClassName="w-full h-full"
+                                                        className="w-full h-full object-cover cursor-zoom-in"
+                                                        onClick={(e) => {
+                                                            e.stopPropagation()
+                                                            setPreviewImage(propPreview)
+                                                        }}
+                                                    />
+                                                ) : (
+                                                    <div className="w-full h-full flex items-center justify-center text-[var(--glass-text-tertiary)]">
+                                                        <PhotoIcon className="w-12 h-12" />
+                                                    </div>
+                                                )}
+                                            </div>
+                                            <div className="text-center">
+                                                <p className="font-medium text-sm text-[var(--glass-text-primary)] truncate">{prop.name}</p>
+                                                <p className="text-xs text-[var(--glass-text-secondary)] mt-1">
+                                                    {prop.images?.length || 0} {t('images')}
                                                 </p>
                                             </div>
                                         </div>

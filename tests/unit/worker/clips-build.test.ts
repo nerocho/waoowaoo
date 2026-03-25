@@ -137,6 +137,7 @@ describe('worker clips-build behavior', () => {
         summary: 'first clip',
         location: 'Old Town',
         characters: JSON.stringify(['Hero']),
+        props: null,
         content: 'START one END',
       },
       select: { id: true },

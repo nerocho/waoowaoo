@@ -10,7 +10,7 @@ type ToastType = 'success' | 'warning' | 'error'
 type ShowToast = (message: string, type?: ToastType, duration?: number) => void
 
 export type GlobalCopyTarget = {
-  type: 'character' | 'location' | 'voice'
+  type: 'character' | 'location' | 'prop' | 'voice'
   targetId: string
 }
 
@@ -36,6 +36,10 @@ export function useAssetsCopyFromHub({ projectId, onRefresh, showToast }: UseAss
     setCopyFromGlobalTarget({ type: 'location', targetId: locationId })
   }, [])
 
+  const handleCopyPropFromGlobal = useCallback((propId: string) => {
+    setCopyFromGlobalTarget({ type: 'prop', targetId: propId })
+  }, [])
+
   const handleVoiceSelectFromHub = useCallback((characterId: string) => {
     setCopyFromGlobalTarget({ type: 'voice', targetId: characterId })
   }, [])
@@ -59,6 +63,8 @@ export function useAssetsCopyFromHub({ projectId, onRefresh, showToast }: UseAss
         ? t('assetLibrary.copySuccessCharacter')
         : copyFromGlobalTarget.type === 'location'
           ? t('assetLibrary.copySuccessLocation')
+          : copyFromGlobalTarget.type === 'prop'
+            ? t('assetLibrary.copySuccessProp')
           : t('assetLibrary.copySuccessVoice')
       showToast(successMsg, 'success')
       setCopyFromGlobalTarget(null)
@@ -77,6 +83,7 @@ export function useAssetsCopyFromHub({ projectId, onRefresh, showToast }: UseAss
     isGlobalCopyInFlight,
     handleCopyFromGlobal,
     handleCopyLocationFromGlobal,
+    handleCopyPropFromGlobal,
     handleVoiceSelectFromHub,
     handleConfirmCopyFromGlobal,
     handleCloseCopyPicker,

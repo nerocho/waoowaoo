@@ -86,10 +86,11 @@ export function useGenerateProjectLocationImage(projectId: string) {
             artStyle?: string
             count?: number
         }) => {
-            return await requestJsonWithError(`/api/novel-promotion/${projectId}/generate-image`, {
+            return await requestJsonWithError(`/api/assets/${locationId}/generate`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify(buildProjectLocationGenerateImageBody({
+                    projectId,
                     locationId,
                     imageIndex,
                     artStyle,
@@ -117,14 +118,16 @@ export function useGenerateProjectLocationImage(projectId: string) {
 }
 
 export function buildProjectLocationGenerateImageBody(input: {
+    projectId: string
     locationId: string
     imageIndex?: number
     artStyle?: string
     count?: number
 }) {
     return {
-        type: 'location' as const,
-        id: input.locationId,
+        scope: 'project' as const,
+        kind: 'location' as const,
+        projectId: input.projectId,
         imageIndex: input.imageIndex,
         artStyle: input.artStyle,
         count: input.count,
@@ -184,11 +187,13 @@ export function useModifyProjectLocationImage(projectId: string) {
             modifyPrompt: string
             extraImageUrls?: string[]
         }) => {
-            return await requestJsonWithError(`/api/novel-promotion/${projectId}/modify-asset-image`, {
+            return await requestJsonWithError(`/api/assets/${params.locationId}/modify-render`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
-                    type: 'location',
+                    scope: 'project',
+                    kind: 'location',
+                    projectId,
                     ...params,
                 }),
             }, 'Failed to modify image')
@@ -223,12 +228,13 @@ export function useRegenerateLocationGroup(projectId: string) {
 
     return useMutation({
         mutationFn: async ({ locationId, count }: { locationId: string; count?: number }) => {
-            return await requestJsonWithError(`/api/novel-promotion/${projectId}/regenerate-group`, {
+            return await requestJsonWithError(`/api/assets/${locationId}/generate`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
-                    type: 'location',
-                    id: locationId,
+                    scope: 'project',
+                    kind: 'location',
+                    projectId,
                     count,
                 })
             }, 'Failed to regenerate group')
@@ -263,12 +269,13 @@ export function useRegenerateSingleLocationImage(projectId: string) {
 
     return useMutation({
         mutationFn: async ({ locationId, imageIndex }: { locationId: string; imageIndex: number }) => {
-            return await requestJsonWithError(`/api/novel-promotion/${projectId}/regenerate-single-image`, {
+            return await requestJsonWithError(`/api/assets/${locationId}/generate`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
-                    type: 'location',
-                    id: locationId,
+                    scope: 'project',
+                    kind: 'location',
+                    projectId,
                     imageIndex,
                 })
             }, 'Failed to regenerate image')
@@ -310,12 +317,14 @@ export function useSelectProjectLocationImage(projectId: string) {
             imageIndex: number | null
             confirm?: boolean
         }) => {
-            return await requestJsonWithError(`/api/novel-promotion/${projectId}/select-location-image`, {
+            return await requestJsonWithError(`/api/assets/${locationId}/select-render`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
-                    locationId,
-                    selectedIndex: imageIndex,
+                    scope: 'project',
+                    kind: 'location',
+                    projectId,
+                    imageIndex,
                 })
             }, 'Failed to select image')
         },
@@ -373,12 +382,13 @@ export function useUndoProjectLocationImage(projectId: string) {
 
     return useMutation({
         mutationFn: async (locationId: string) => {
-            return await requestJsonWithError(`/api/novel-promotion/${projectId}/undo-regenerate`, {
+            return await requestJsonWithError(`/api/assets/${locationId}/revert-render`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
-                    type: 'location',
-                    id: locationId
+                    scope: 'project',
+                    kind: 'location',
+                    projectId,
                 })
             }, 'Failed to undo image')
         },

@@ -366,13 +366,24 @@ export function SettingsModal({
                 <p className="text-[12px] text-[var(--glass-text-tertiary)] mb-6">{t('subtitle')}</p>
                 <div className="space-y-5 flex-1 min-h-0 overflow-y-auto custom-scrollbar">
                     <div className="glass-surface-soft p-5 sm:p-6 space-y-4">
-                        <h3 className="text-sm font-semibold text-[var(--glass-text-tertiary)]">{t('visualStyle')}</h3>
-                        <div className="max-w-xs">
-                            <StyleSelector
-                                value={artStyle}
-                                onChange={(value) => handleChange(onArtStyleChange)(value)}
-                                options={ART_STYLES}
-                            />
+                        <h3 className="text-sm font-semibold text-[var(--glass-text-tertiary)]">{t('visualSettings')}</h3>
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                            <div className="space-y-2">
+                                <label className="text-sm font-medium text-[var(--glass-text-secondary)]">{t('visualStyle')}</label>
+                                <StyleSelector
+                                    value={artStyle}
+                                    onChange={(value) => handleChange(onArtStyleChange)(value)}
+                                    options={ART_STYLES}
+                                />
+                            </div>
+                            <div className="space-y-2">
+                                <label className="text-sm font-medium text-[var(--glass-text-secondary)]">{t('aspectRatio')}</label>
+                                <RatioSelector
+                                    value={videoRatio}
+                                    onChange={(value) => { handleChange(onVideoRatioChange)(value) }}
+                                    options={VIDEO_RATIOS}
+                                />
+                            </div>
                         </div>
                     </div>
 
@@ -491,16 +502,7 @@ export function SettingsModal({
                         </div>
                     </div>
 
-                    <div className="glass-surface-soft p-5 sm:p-6 space-y-4">
-                        <h3 className="text-sm font-semibold text-[var(--glass-text-tertiary)]">{t('aspectRatio')}</h3>
-                        <div className="max-w-xs">
-                            <RatioSelector
-                                value={videoRatio}
-                                onChange={(value) => { handleChange(onVideoRatioChange)(value) }}
-                                options={VIDEO_RATIOS}
-                            />
-                        </div>
-                    </div>
+
                 </div>
             </div>
         </div>

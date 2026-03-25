@@ -11,6 +11,10 @@ import { logAIAnalysis } from '@/lib/logging/semantic'
 import { buildCharactersIntroduction } from '@/lib/constants'
 import type { Locale } from '@/i18n/routing'
 import { getPromptTemplate, PROMPT_IDS } from '@/lib/prompt-i18n'
+import {
+    buildPromptAssetContext,
+    compileAssetPromptFragments,
+} from '@/lib/assets/services/asset-prompt-context'
 
 // 阶段类型
 export type StoryboardPhase = 1 | '2-cinematography' | '2-acting' | 3
@@ -39,6 +43,11 @@ export type LocationAsset = {
     }>
 }
 
+export type PropAsset = {
+    name: string
+    summary?: string | null
+}
+
 type ClipAsset = {
     id?: string
     start?: string | number | null
@@ -47,6 +56,7 @@ type ClipAsset = {
     endText?: string | null
     characters?: string | null
     location?: string | null
+    props?: string | null
     content?: string | null
     screenplay?: string | null
 }
@@ -62,6 +72,7 @@ type NovelPromotionAssetData = {
     analysisModel: string
     characters: CharacterAsset[]
     locations: LocationAsset[]
+    props?: PropAsset[]
 }
 
 export type StoryboardPanel = JsonRecord & {
@@ -70,6 +81,7 @@ export type StoryboardPanel = JsonRecord & {
     location?: string
     source_text?: string
     characters?: unknown
+    props?: unknown
     srt_range?: unknown[]
     scene_type?: string
     shot_type?: string
@@ -117,17 +129,6 @@ function parseScreenplay(raw: string | null | undefined): unknown {
     }
 }
 
-function parseDescriptions(raw: string | null | undefined): string[] {
-    if (!raw) return []
-    try {
-        const parsed = JSON.parse(raw)
-        if (!Array.isArray(parsed)) return []
-        return parsed.filter((item): item is string => typeof item === 'string')
-    } catch {
-        return []
-    }
-}
-
 // 阶段进度映射
 export const PHASE_PROGRESS: Record<string, { start: number, end: number, label: string, labelKey: string }> = {
     '1': { start: 10, end: 40, label: '规划分镜', labelKey: 'phases.planning' },
@@ -147,69 +148,51 @@ export interface PhaseResult {
 
 // ========== 辅助函数 ==========
 
-// 🔥 辅助函数：从 clipCharacters 提取角色名（支持混合格式）
-function extractCharacterNames(clipCharacters: ClipCharacterRef[]): string[] {
-    return clipCharacters.map(item => {
-        if (typeof item === 'string') return item
-        if (typeof item === 'object' && typeof item.name === 'string') return item.name
-        return ''
-    }).filter(Boolean)
-}
-
-/**
- * 按别名匹配检查角色名是否匹配引用名
- * 优先级：1. 精确全名  2. 按 '/' 拆分后别名精确匹配
- */
-function characterNameMatches(characterName: string, referenceName: string): boolean {
-    const charLower = characterName.toLowerCase().trim()
-    const refLower = referenceName.toLowerCase().trim()
-    if (charLower === refLower) return true
-    const charAliases = charLower.split('/').map(s => s.trim()).filter(Boolean)
-    const refAliases = refLower.split('/').map(s => s.trim()).filter(Boolean)
-    return refAliases.some(refAlias => charAliases.includes(refAlias))
-}
-
 // 根据 clip.characters 筛选角色形象列表
 export function getFilteredAppearanceList(characters: CharacterAsset[], clipCharacters: ClipCharacterRef[]): string {
-    if (clipCharacters.length === 0) return '无'
-    const charNames = extractCharacterNames(clipCharacters)
-    return characters
-        .filter((c) => charNames.some(name => characterNameMatches(c.name, name)))
-        .map((c) => {
-            const appearances = c.appearances || []
-            if (appearances.length === 0) return `${c.name}: ["初始形象"]`
-            const appearanceNames = appearances.map((app) => app.changeReason || '初始形象')
-            return `${c.name}: [${appearanceNames.map((n: string) => `"${n}"`).join(', ')}]`
-        }).join('\n') || '无'
+    return compileAssetPromptFragments(buildPromptAssetContext({
+        characters,
+        locations: [],
+        props: [],
+        clipCharacters,
+        clipLocation: null,
+        clipProps: [],
+    })).appearanceListText
 }
 
 // 根据 clip.characters 筛选角色完整描述
 export function getFilteredFullDescription(characters: CharacterAsset[], clipCharacters: ClipCharacterRef[]): string {
-    if (clipCharacters.length === 0) return '无'
-    const charNames = extractCharacterNames(clipCharacters)
-    return characters
-        .filter((c) => charNames.some(name => characterNameMatches(c.name, name)))
-        .map((c) => {
-            const appearances = c.appearances || []
-            if (appearances.length === 0) return `【${c.name}】无形象描述`
-
-            return appearances.map((app) => {
-                const appearanceName = app.changeReason || '初始形象'
-                const descriptions = parseDescriptions(app.descriptions)
-                const selectedIndex = typeof app.selectedIndex === 'number' ? app.selectedIndex : 0
-                const finalDesc = descriptions[selectedIndex] || app.description || '无描述'
-                return `【${c.name} - ${appearanceName}】${finalDesc}`
-            }).join('\n')
-        }).join('\n') || '无'
+    return compileAssetPromptFragments(buildPromptAssetContext({
+        characters,
+        locations: [],
+        props: [],
+        clipCharacters,
+        clipLocation: null,
+        clipProps: [],
+    })).fullDescriptionText
 }
 
 // 根据 clip.location 筛选场景描述
 export function getFilteredLocationsDescription(locations: LocationAsset[], clipLocation: string | null): string {
-    if (!clipLocation) return '无'
-    const location = locations.find((l) => l.name.toLowerCase() === clipLocation.toLowerCase())
-    if (!location) return '无'
-    const selectedImage = location.images?.find((img) => img.isSelected) || location.images?.[0]
-    return selectedImage?.description || '无描述'
+    return compileAssetPromptFragments(buildPromptAssetContext({
+        characters: [],
+        locations,
+        props: [],
+        clipCharacters: [],
+        clipLocation,
+        clipProps: [],
+    })).locationDescriptionText
+}
+
+function parseClipProps(raw: string | null | undefined): string[] {
+    if (!raw) return []
+    try {
+        const parsed = JSON.parse(raw)
+        if (!Array.isArray(parsed)) return []
+        return parsed.map((item) => (typeof item === 'string' ? item.trim() : '')).filter(Boolean)
+    } catch {
+        return []
+    }
 }
 
 // 格式化Clip标识（支持SRT模式和Agent模式）
@@ -273,12 +256,21 @@ export async function executePhase1(
     // 解析clip数据
     const clipCharacters = parseClipCharacters(clip.characters)
     const clipLocation = clip.location || null
+    const clipProps = parseClipProps(clip.props)
 
     // 构建资产信息
     const charactersLibName = novelPromotionData.characters.map((c) => c.name).join(', ') || '无'
     const locationsLibName = novelPromotionData.locations.map((l) => l.name).join(', ') || '无'
     const filteredAppearanceList = getFilteredAppearanceList(novelPromotionData.characters, clipCharacters)
     const filteredFullDescription = getFilteredFullDescription(novelPromotionData.characters, clipCharacters)
+    const filteredPropsDescription = compileAssetPromptFragments(buildPromptAssetContext({
+        characters: [],
+        locations: [],
+        props: novelPromotionData.props || [],
+        clipCharacters: [],
+        clipLocation: null,
+        clipProps,
+    })).propsDescriptionText
     const charactersIntroduction = buildCharactersIntroduction(novelPromotionData.characters)
 
     // 构建clip JSON
@@ -286,7 +278,8 @@ export async function executePhase1(
         id: clip.id,
         content: clip.content,
         characters: clipCharacters,
-        location: clipLocation
+        location: clipLocation,
+        props: clipProps,
     }, null, 2)
 
     // 读取剧本
@@ -302,6 +295,7 @@ export async function executePhase1(
         .replace('{characters_introduction}', charactersIntroduction)
         .replace('{characters_appearance_list}', filteredAppearanceList)
         .replace('{characters_full_description}', filteredFullDescription)
+        .replace('{props_description}', filteredPropsDescription)
         .replace('{clip_json}', clipJson)
 
     if (screenplay) {
@@ -408,9 +402,18 @@ export async function executePhase2(
     // 解析clip数据
     const clipCharacters = parseClipCharacters(clip.characters)
     const clipLocation = clip.location || null
+    const clipProps = parseClipProps(clip.props)
 
     const filteredFullDescription = getFilteredFullDescription(novelPromotionData.characters, clipCharacters)
     const filteredLocationsDescription = getFilteredLocationsDescription(novelPromotionData.locations, clipLocation)
+    const filteredPropsDescription = compileAssetPromptFragments(buildPromptAssetContext({
+        characters: [],
+        locations: [],
+        props: novelPromotionData.props || [],
+        clipCharacters: [],
+        clipLocation: null,
+        clipProps,
+    })).propsDescriptionText
 
     // 构建提示词
     const cinematographerPrompt = cinematographerPromptTemplate
@@ -419,6 +422,7 @@ export async function executePhase2(
         .replace(/\{panel_count\}/g, planPanels.length.toString())
         .replace('{locations_description}', filteredLocationsDescription)
         .replace('{characters_info}', filteredFullDescription)
+        .replace('{props_description}', filteredPropsDescription)
 
     let photographyRules: PhotographyRule[] = []
 
@@ -581,15 +585,25 @@ export async function executePhase3(
     // 解析clip数据
     const clipCharacters = parseClipCharacters(clip.characters)
     const clipLocation = clip.location || null
+    const clipProps = parseClipProps(clip.props)
 
     const filteredFullDescription = getFilteredFullDescription(novelPromotionData.characters, clipCharacters)
     const filteredLocationsDescription = getFilteredLocationsDescription(novelPromotionData.locations, clipLocation)
+    const filteredPropsDescription = compileAssetPromptFragments(buildPromptAssetContext({
+        characters: [],
+        locations: [],
+        props: novelPromotionData.props || [],
+        clipCharacters: [],
+        clipLocation: null,
+        clipProps,
+    })).propsDescriptionText
 
     // 构建提示词
     const detailPrompt = detailPromptTemplate
         .replace('{panels_json}', JSON.stringify(planPanels, null, 2))
         .replace('{characters_age_gender}', filteredFullDescription)  // 改用完整描述
         .replace('{locations_description}', filteredLocationsDescription)
+        .replace('{props_description}', filteredPropsDescription)
 
     // 记录发送给 AI 的完整 prompt
     logAIAnalysis(session.user.id, session.user.name, projectId, projectName, {

@@ -34,6 +34,7 @@ export type StoryToScriptClipCandidate = {
   summary: string
   location: string | null
   characters: string[]
+  props: string[]
   content: string
   matchLevel: ClipMatchLevel
   matchConfidence: number
@@ -50,6 +51,7 @@ export type StoryToScriptScreenplayResult = {
 export type StoryToScriptPromptTemplates = {
   characterPromptTemplate: string
   locationPromptTemplate: string
+  propPromptTemplate: string
   clipPromptTemplate: string
   screenplayPromptTemplate: string
 }
@@ -59,6 +61,7 @@ export type StoryToScriptOrchestratorInput = {
   content: string
   baseCharacters: string[]
   baseLocations: string[]
+  baseProps?: string[]
   baseCharacterIntroductions: Array<{ name: string; introduction?: string | null }>
   promptTemplates: StoryToScriptPromptTemplates
   runStep: (
@@ -74,20 +77,25 @@ export type StoryToScriptOrchestratorInput = {
 export type StoryToScriptOrchestratorResult = {
   characterStep: StoryToScriptStepOutput
   locationStep: StoryToScriptStepOutput
+  propStep: StoryToScriptStepOutput
   splitStep: StoryToScriptStepOutput
   charactersObject: Record<string, unknown>
   locationsObject: Record<string, unknown>
+  propsObject: Record<string, unknown>
   analyzedCharacters: Record<string, unknown>[]
   analyzedLocations: Record<string, unknown>[]
+  analyzedProps: Record<string, unknown>[]
   charactersLibName: string
   locationsLibName: string
+  propsLibName: string
   charactersIntroduction: string
   clipList: StoryToScriptClipCandidate[]
   screenplayResults: StoryToScriptScreenplayResult[]
   summary: {
     characterCount: number
-    locationCount: number
-    clipCount: number
+      locationCount: number
+      propCount: number
+      clipCount: number
     screenplaySuccessCount: number
     screenplayFailedCount: number
     totalScenes: number
@@ -135,6 +143,10 @@ function extractAnalyzedCharacters(obj: Record<string, unknown>): Record<string,
 
 function extractAnalyzedLocations(obj: Record<string, unknown>): Record<string, unknown>[] {
   return toObjectArray(obj.locations)
+}
+
+function extractAnalyzedProps(obj: Record<string, unknown>): Record<string, unknown>[] {
+  return toObjectArray(obj.props)
 }
 
 const MAX_STEP_ATTEMPTS = 3
@@ -237,6 +249,7 @@ export async function runStoryToScriptOrchestrator(
     content,
     baseCharacters,
     baseLocations,
+    baseProps = [],
     baseCharacterIntroductions,
     promptTemplates,
     runStep,
@@ -250,6 +263,7 @@ export async function runStoryToScriptOrchestrator(
 
   const baseCharactersText = baseCharacters.length > 0 ? baseCharacters.join('、') : '无'
   const baseLocationsText = baseLocations.length > 0 ? baseLocations.join('、') : '无'
+  const basePropsText = baseProps.length > 0 ? baseProps.join('、') : '无'
   const baseCharacterInfo = baseCharacterIntroductions.length > 0
     ? baseCharacterIntroductions.map((item, index) => `${index + 1}. ${item.name}`).join('\n')
     : '暂无已有角色'
@@ -263,8 +277,12 @@ export async function runStoryToScriptOrchestrator(
     input: content,
     locations_lib_name: baseLocationsText,
   })
+  const propPrompt = applyTemplate(promptTemplates.propPromptTemplate, {
+    input: content,
+    props_lib_name: basePropsText,
+  })
 
-  onLog?.('开始步骤1：角色/场景分析（并行）')
+  onLog?.('开始步骤1：角色/场景/道具分析（并行）')
   const analysisResults = await mapWithConcurrency(
     [
       () => runStepWithRetry(
@@ -299,20 +317,41 @@ export async function runStoryToScriptOrchestrator(
         2200,
         safeParseJsonObject,
       ),
+      () => runStepWithRetry(
+        runStep,
+        {
+          stepId: 'analyze_props',
+          stepTitle: 'progress.streamStep.analyzeProps',
+          stepIndex: 3,
+          stepTotal: 3,
+          groupId: 'analysis',
+          parallelKey: 'props',
+          retryable: true,
+        },
+        propPrompt,
+        'analyze_props',
+        1600,
+        safeParseJsonObject,
+      ),
     ],
     concurrency,
     async (run) => await run(),
   )
   const { output: characterStep, parsed: charactersObject } = analysisResults[0]
   const { output: locationStep, parsed: locationsObject } = analysisResults[1]
+  const { output: propStep, parsed: propsObject } = analysisResults[2]
 
   const analyzedCharacters = extractAnalyzedCharacters(charactersObject)
   const analyzedLocations = extractAnalyzedLocations(locationsObject)
+  const analyzedProps = extractAnalyzedProps(propsObject)
 
   const analyzedCharacterNames = analyzedCharacters
     .map((item) => asString(item.name).trim())
     .filter(Boolean)
   const analyzedLocationNames = analyzedLocations
+    .map((item) => asString(item.name).trim())
+    .filter(Boolean)
+  const analyzedPropNames = analyzedProps
     .map((item) => asString(item.name).trim())
     .filter(Boolean)
 
@@ -329,6 +368,14 @@ export async function runStoryToScriptOrchestrator(
   const locationsLibName = analyzedLocationNames.length > 0
     ? analyzedLocationNames.join('、')
     : baseLocationsText
+  const analyzedPropNameSet = new Set(analyzedPropNames)
+  const mergedPropNames = [
+    ...analyzedPropNames,
+    ...baseProps.filter((name) => !analyzedPropNameSet.has(name)),
+  ]
+  const propsLibName = mergedPropNames.length > 0
+    ? mergedPropNames.join('、')
+    : basePropsText
 
   // 合并角色介绍：新角色 + 未被新角色覆盖的已有角色介绍
   const mergedCharacterIntroductions = [
@@ -361,6 +408,7 @@ export async function runStoryToScriptOrchestrator(
     input: content,
     locations_lib_name: locationsLibName || '无',
     characters_lib_name: charactersLibName || '无',
+    props_lib_name: propsLibName || '无',
     characters_introduction: charactersIntroduction || '暂无角色介绍',
   })
   const splitPrompt = `${splitPromptBase}${CLIP_BOUNDARY_SUFFIX}`
@@ -420,6 +468,7 @@ export async function runStoryToScriptOrchestrator(
         summary: asString(item.summary),
         location: asString(item.location) || null,
         characters: toStringArray(item.characters),
+        props: toStringArray(item.props),
         content: content.slice(match.startIndex, match.endIndex),
         matchLevel: match.level,
         matchConfidence: match.confidence,
@@ -480,6 +529,7 @@ export async function runStoryToScriptOrchestrator(
           clip_content: clip.content,
           locations_lib_name: locationsLibName || '无',
           characters_lib_name: charactersLibName || '无',
+          props_lib_name: propsLibName || '无',
           characters_introduction: charactersIntroduction || '暂无角色介绍',
           clip_id: clip.id,
         })
@@ -519,19 +569,24 @@ export async function runStoryToScriptOrchestrator(
   return {
     characterStep,
     locationStep,
+    propStep,
     splitStep,
     charactersObject,
     locationsObject,
+    propsObject,
     analyzedCharacters,
     analyzedLocations,
+    analyzedProps,
     charactersLibName,
     locationsLibName,
+    propsLibName,
     charactersIntroduction,
     clipList,
     screenplayResults,
     summary: {
       characterCount: analyzedCharacters.length,
       locationCount: analyzedLocations.length,
+      propCount: analyzedProps.length,
       clipCount: clipList.length,
       screenplaySuccessCount,
       screenplayFailedCount,

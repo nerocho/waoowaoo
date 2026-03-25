@@ -95,6 +95,7 @@ export function usePanelVariant({ projectId, episodeId, setLocalStoryboards }: U
                 imageUrl: null,
                 imageTaskRunning: true, // 🔥 显示加载状态
                 characters: null,
+                props: null,
                 location: null,
                 candidateImages: null,
                 srtSegment: null,

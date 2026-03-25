@@ -24,6 +24,9 @@ const messages = {
       waitingModelOutput: '等待模型输出...',
       reasoningNotProvided: '该步骤未返回思考过程',
     },
+    streamStep: {
+      analyzeProps: '道具分析',
+    },
     runtime: {
       llm: {
         processing: '模型处理中...',
@@ -68,5 +71,28 @@ describe('LLMStageStreamCard error rendering', () => {
     expect(html).not.toContain('打开问题反馈表单')
     expect(html).not.toContain('Copy error detail')
     expect(html).not.toContain('Open feedback form')
+  })
+
+  it('resolves analyze props progress keys without missing message errors', () => {
+    Reflect.set(globalThis, 'React', React)
+    const html = renderWithIntl(
+      createElement(LLMStageStreamCard, {
+        title: 'progress.streamStep.analyzeProps',
+        stages: [{
+          id: 'analyze_props',
+          title: 'progress.streamStep.analyzeProps',
+          subtitle: 'progress.streamStep.analyzeProps',
+          status: 'processing',
+          progress: 35,
+        }],
+        activeStageId: 'analyze_props',
+        activeMessage: 'progress.streamStep.analyzeProps',
+        outputText: '',
+      }),
+    )
+
+    expect(html).toContain('道具分析')
+    expect(html).not.toContain('progress.streamStep.analyzeProps')
+    expect(html).not.toContain('MISSING_MESSAGE')
   })
 })

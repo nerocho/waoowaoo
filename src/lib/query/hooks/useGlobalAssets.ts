@@ -1,12 +1,12 @@
 'use client'
 
-import { useMemo } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { queryKeys } from '../keys'
-import { useTaskTargetStateMap } from './useTaskTargetStateMap'
 import { resolveTaskErrorMessage } from '@/lib/task/error-message'
 import type { MediaRef } from '@/types/project'
 import { apiFetch } from '@/lib/api-fetch'
+import { useAssets } from './useAssets'
+import { groupAssetsByKind } from '@/lib/assets/grouping'
 
 // ============ 类型定义 ============
 export interface GlobalCharacterAppearance {
@@ -60,6 +60,15 @@ export interface GlobalLocation {
     images: GlobalLocationImage[]
 }
 
+export interface GlobalProp {
+    id: string
+    name: string
+    summary: string | null
+    artStyle: string | null
+    folderId: string | null
+    images: GlobalLocationImage[]
+}
+
 export interface GlobalVoice {
     id: string
     name: string
@@ -79,109 +88,51 @@ export interface GlobalFolder {
     name: string
 }
 
-const GLOBAL_ASSET_PROJECT_ID = 'global-asset-hub'
-const GLOBAL_IMAGE_TASK_TYPES = ['asset_hub_image']
-const GLOBAL_MODIFY_TASK_TYPES = ['asset_hub_modify']
-
-function isRunningPhase(phase: string | null | undefined) {
-    return phase === 'queued' || phase === 'processing'
-}
-
 // ============ 查询 Hooks ============
 
 /**
  * 获取中心资产库角色列表
  */
 export function useGlobalCharacters(folderId?: string | null) {
-    const charactersQuery = useQuery({
-        queryKey: queryKeys.globalAssets.characters(folderId),
-        queryFn: async () => {
-            const params = new URLSearchParams()
-            if (folderId) params.set('folderId', folderId)
-            const res = await apiFetch(`/api/asset-hub/characters?${params}`)
-            if (!res.ok) throw new Error('Failed to fetch characters')
-            const data = await res.json()
-            return data.characters as GlobalCharacter[]
-        },
+    const assetsQuery = useAssets({
+        scope: 'global',
+        folderId,
+        kind: 'character',
     })
-    const taskTargets = useMemo(() => {
-        const characters = charactersQuery.data || []
-        const targets: Array<{ targetType: string; targetId: string; types: string[] }> = []
-        for (const character of characters) {
-            targets.push({
-                targetType: 'GlobalCharacter',
-                targetId: character.id,
-                types: GLOBAL_IMAGE_TASK_TYPES,
-            })
-            for (const appearance of character.appearances || []) {
-                targets.push({
-                    targetType: 'GlobalCharacterAppearance',
-                    targetId: appearance.id,
-                    types: GLOBAL_MODIFY_TASK_TYPES,
-                })
-                const imageCount = Math.max(1, appearance.imageUrls?.length || 0)
-                for (let index = 0; index < imageCount; index += 1) {
-                    targets.push({
-                        targetType: 'GlobalCharacterAppearance',
-                        targetId: `${character.id}:${appearance.appearanceIndex}:${index}`,
-                        types: GLOBAL_MODIFY_TASK_TYPES,
-                    })
-                }
-            }
-        }
-        return targets
-    }, [charactersQuery.data])
-
-    const taskStatesQuery = useTaskTargetStateMap(GLOBAL_ASSET_PROJECT_ID, taskTargets, {
-        enabled: taskTargets.length > 0,
-    })
-
-    const data = useMemo(() => {
-        const characters = charactersQuery.data
-        if (!characters) return characters
-        const byKey = taskStatesQuery.byKey
-        const getState = (targetType: string, targetId: string) =>
-            byKey.get(`${targetType}:${targetId}`) || null
-        return characters.map((character) => ({
-            ...character,
-            appearances: (character.appearances || []).map((appearance) => {
-                const imageCount = Math.max(1, appearance.imageUrls?.length || 0)
-                let hasAppearanceTask = isRunningPhase(
-                    getState('GlobalCharacterAppearance', appearance.id)?.phase,
-                )
-                let appearanceError: { code: string; message: string } | null = null
-                for (let index = 0; index < imageCount; index += 1) {
-                    const indexState = getState(
-                        'GlobalCharacterAppearance',
-                        `${character.id}:${appearance.appearanceIndex}:${index}`,
-                    )
-                    if (!hasAppearanceTask && isRunningPhase(indexState?.phase)) {
-                        hasAppearanceTask = true
-                    }
-                    if (!appearanceError && indexState?.lastError) {
-                        appearanceError = indexState.lastError
-                    }
-                }
-                const characterState = getState('GlobalCharacter', character.id)
-                const hasCharacterTask = isRunningPhase(characterState?.phase)
-                // 优先取子索引级的错误，其次取 appearance 级，最后取 character 级
-                const lastError = appearanceError
-                    || getState('GlobalCharacterAppearance', appearance.id)?.lastError
-                    || characterState?.lastError
-                    || null
-                return {
-                    ...appearance,
-                    imageTaskRunning: hasCharacterTask || hasAppearanceTask,
-                    lastError,
-                }
-            }),
-        }))
-    }, [charactersQuery.data, taskStatesQuery.byKey])
-
     return {
-        ...charactersQuery,
-        data,
-        isFetching: charactersQuery.isFetching || taskStatesQuery.isFetching,
+        ...assetsQuery,
+        data: groupAssetsByKind(assetsQuery.data).character.map((asset) => ({
+            id: asset.id,
+            name: asset.name,
+            folderId: asset.folderId,
+            customVoiceUrl: asset.voice.customVoiceUrl,
+            media: asset.voice.media,
+            appearances: asset.variants.map((variant) => ({
+                id: variant.id,
+                appearanceIndex: variant.index,
+                changeReason: variant.label,
+                artStyle: null,
+                description: variant.description,
+                descriptionSource: null,
+                imageUrl: variant.renders.find((render) => render.isSelected)?.imageUrl
+                    ?? variant.renders[0]?.imageUrl
+                    ?? null,
+                media: variant.renders.find((render) => render.isSelected)?.media
+                    ?? variant.renders[0]?.media
+                    ?? null,
+                imageUrls: variant.renders.map((render) => render.imageUrl).filter((imageUrl): imageUrl is string => !!imageUrl),
+                imageMedias: variant.renders.map((render) => render.media).filter((media): media is MediaRef => !!media),
+                selectedIndex: variant.selectionState.selectedRenderIndex,
+                previousImageUrl: variant.renders[0]?.previousImageUrl ?? null,
+                previousMedia: variant.renders[0]?.previousMedia ?? null,
+                previousImageUrls: variant.renders.map((render) => render.previousImageUrl).filter((imageUrl): imageUrl is string => !!imageUrl),
+                previousImageMedias: variant.renders.map((render) => render.previousMedia).filter((media): media is MediaRef => !!media),
+                imageTaskRunning: asset.taskState.isRunning || variant.taskState.isRunning || variant.renders.some((render) => render.taskState.isRunning),
+                lastError: variant.renders.find((render) => render.taskState.lastError)?.taskState.lastError
+                    ?? variant.taskState.lastError
+                    ?? asset.taskState.lastError,
+            })),
+        })) as GlobalCharacter[],
     }
 }
 
@@ -189,79 +140,68 @@ export function useGlobalCharacters(folderId?: string | null) {
  * 获取中心资产库场景列表
  */
 export function useGlobalLocations(folderId?: string | null) {
-    const locationsQuery = useQuery({
-        queryKey: queryKeys.globalAssets.locations(folderId),
-        queryFn: async () => {
-            const params = new URLSearchParams()
-            if (folderId) params.set('folderId', folderId)
-            const res = await apiFetch(`/api/asset-hub/locations?${params}`)
-            if (!res.ok) throw new Error('Failed to fetch locations')
-            const data = await res.json()
-            return data.locations as GlobalLocation[]
-        },
+    const assetsQuery = useAssets({
+        scope: 'global',
+        folderId,
+        kind: 'location',
     })
-    const taskTargets = useMemo(() => {
-        const locations = locationsQuery.data || []
-        const targets: Array<{ targetType: string; targetId: string; types: string[] }> = []
-        for (const location of locations) {
-            targets.push({
-                targetType: 'GlobalLocation',
-                targetId: location.id,
-                types: GLOBAL_IMAGE_TASK_TYPES,
-            })
-            for (const image of location.images || []) {
-                targets.push({
-                    targetType: 'GlobalLocationImage',
-                    targetId: image.id,
-                    types: GLOBAL_MODIFY_TASK_TYPES,
-                })
-                targets.push({
-                    targetType: 'GlobalLocationImage',
-                    targetId: `${location.id}:${image.imageIndex}`,
-                    types: GLOBAL_MODIFY_TASK_TYPES,
-                })
-            }
-        }
-        return targets
-    }, [locationsQuery.data])
-
-    const taskStatesQuery = useTaskTargetStateMap(GLOBAL_ASSET_PROJECT_ID, taskTargets, {
-        enabled: taskTargets.length > 0,
-    })
-
-    const data = useMemo(() => {
-        const locations = locationsQuery.data
-        if (!locations) return locations
-        const byKey = taskStatesQuery.byKey
-        const getState = (targetType: string, targetId: string) =>
-            byKey.get(`${targetType}:${targetId}`) || null
-        return locations.map((location) => ({
-            ...location,
-            images: (location.images || []).map((image) => {
-                const locationState = getState('GlobalLocation', location.id)
-                const imageState = getState('GlobalLocationImage', image.id)
-                const indexState = getState('GlobalLocationImage', `${location.id}:${image.imageIndex}`)
-                const hasLocationTask = isRunningPhase(locationState?.phase)
-                const hasImageTask =
-                    isRunningPhase(imageState?.phase) ||
-                    isRunningPhase(indexState?.phase)
-                const lastError = indexState?.lastError
-                    || imageState?.lastError
-                    || locationState?.lastError
-                    || null
+    return {
+        ...assetsQuery,
+        data: groupAssetsByKind(assetsQuery.data).location.map((asset) => ({
+            id: asset.id,
+            name: asset.name,
+            summary: asset.summary,
+            artStyle: null,
+            folderId: asset.folderId,
+            images: asset.variants.map((variant) => {
+                const render = variant.renders[0] ?? null
                 return {
-                    ...image,
-                    imageTaskRunning: hasLocationTask || hasImageTask,
-                    lastError,
+                    id: variant.id,
+                    imageIndex: variant.index,
+                    description: variant.description,
+                    imageUrl: render?.imageUrl ?? null,
+                    media: render?.media ?? null,
+                    previousImageUrl: render?.previousImageUrl ?? null,
+                    previousMedia: render?.previousMedia ?? null,
+                    isSelected: render?.isSelected ?? false,
+                    imageTaskRunning: asset.taskState.isRunning || variant.taskState.isRunning || render?.taskState.isRunning === true,
+                    lastError: render?.taskState.lastError ?? variant.taskState.lastError ?? asset.taskState.lastError,
                 }
             }),
-        }))
-    }, [locationsQuery.data, taskStatesQuery.byKey])
+        })) as GlobalLocation[],
+    }
+}
 
+export function useGlobalProps(folderId?: string | null) {
+    const assetsQuery = useAssets({
+        scope: 'global',
+        folderId,
+        kind: 'prop',
+    })
     return {
-        ...locationsQuery,
-        data,
-        isFetching: locationsQuery.isFetching || taskStatesQuery.isFetching,
+        ...assetsQuery,
+        data: groupAssetsByKind(assetsQuery.data).prop.map((asset) => ({
+            id: asset.id,
+            name: asset.name,
+            summary: asset.summary,
+            artStyle: null,
+            folderId: asset.folderId,
+            images: asset.variants.map((variant) => {
+                const render = variant.renders[0] ?? null
+                return {
+                    id: variant.id,
+                    imageIndex: variant.index,
+                    description: variant.description,
+                    imageUrl: render?.imageUrl ?? null,
+                    media: render?.media ?? null,
+                    previousImageUrl: render?.previousImageUrl ?? null,
+                    previousMedia: render?.previousMedia ?? null,
+                    isSelected: render?.isSelected ?? false,
+                    imageTaskRunning: asset.taskState.isRunning || variant.taskState.isRunning || render?.taskState.isRunning === true,
+                    lastError: render?.taskState.lastError ?? variant.taskState.lastError ?? asset.taskState.lastError,
+                }
+            }),
+        })) as GlobalProp[],
     }
 }
 
@@ -269,17 +209,27 @@ export function useGlobalLocations(folderId?: string | null) {
  * 获取中心资产库音色列表
  */
 export function useGlobalVoices(folderId?: string | null) {
-    return useQuery({
-        queryKey: queryKeys.globalAssets.voices(folderId),
-        queryFn: async () => {
-            const params = new URLSearchParams()
-            if (folderId) params.set('folderId', folderId)
-            const res = await apiFetch(`/api/asset-hub/voices?${params}`)
-            if (!res.ok) throw new Error('Failed to fetch voices')
-            const data = await res.json()
-            return data.voices as GlobalVoice[]
-        },
+    const assetsQuery = useAssets({
+        scope: 'global',
+        folderId,
+        kind: 'voice',
     })
+    return {
+        ...assetsQuery,
+        data: groupAssetsByKind(assetsQuery.data).voice.map((asset) => ({
+            id: asset.id,
+            name: asset.name,
+            description: asset.voiceMeta.description,
+            voiceId: asset.voiceMeta.voiceId,
+            voiceType: asset.voiceMeta.voiceType,
+            customVoiceUrl: asset.voiceMeta.customVoiceUrl,
+            media: asset.voiceMeta.media,
+            voicePrompt: asset.voiceMeta.voicePrompt,
+            gender: asset.voiceMeta.gender,
+            language: asset.voiceMeta.language,
+            folderId: asset.folderId,
+        })) as GlobalVoice[],
+    }
 }
 
 /**
@@ -380,6 +330,9 @@ export function useRefreshGlobalAssets() {
     const queryClient = useQueryClient()
 
     return () => {
+        queryClient.invalidateQueries({
+            queryKey: queryKeys.assets.all('global'),
+        })
         queryClient.invalidateQueries({ queryKey: queryKeys.globalAssets.all() })
     }
 }

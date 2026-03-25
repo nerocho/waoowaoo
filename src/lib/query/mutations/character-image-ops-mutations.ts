@@ -26,11 +26,13 @@ export function useModifyProjectCharacterImage(projectId: string) {
             modifyPrompt: string
             extraImageUrls?: string[]
         }) => {
-            return await requestJsonWithError(`/api/novel-promotion/${projectId}/modify-asset-image`, {
+            return await requestJsonWithError(`/api/assets/${params.characterId}/modify-render`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
-                    type: 'character',
+                    scope: 'project',
+                    kind: 'character',
+                    projectId,
                     ...params,
                 }),
             }, 'Failed to modify image')
@@ -73,12 +75,13 @@ export function useRegenerateCharacterGroup(projectId: string) {
             appearanceId: string
             count?: number
         }) => {
-            return await requestJsonWithError(`/api/novel-promotion/${projectId}/regenerate-group`, {
+            return await requestJsonWithError(`/api/assets/${characterId}/generate`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
-                    type: 'character',
-                    id: characterId,
+                    scope: 'project',
+                    kind: 'character',
+                    projectId,
                     appearanceId,
                     count,
                 })
@@ -122,12 +125,13 @@ export function useRegenerateSingleCharacterImage(projectId: string) {
             appearanceId: string
             imageIndex: number
         }) => {
-            return await requestJsonWithError(`/api/novel-promotion/${projectId}/regenerate-single-image`, {
+            return await requestJsonWithError(`/api/assets/${characterId}/generate`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
-                    type: 'character',
-                    id: characterId,
+                    scope: 'project',
+                    kind: 'character',
+                    projectId,
                     appearanceId,
                     imageIndex,
                 })
@@ -173,12 +177,13 @@ export function useUpdateProjectAppearanceDescription(projectId: string) {
             description: string
             descriptionIndex?: number
         }) => {
-            return await requestJsonWithError(`/api/novel-promotion/${projectId}/character/appearance`, {
+            return await requestJsonWithError(`/api/assets/${characterId}/variants/${appearanceId}`, {
                 method: 'PATCH',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
-                    characterId,
-                    appearanceId,
+                    scope: 'project',
+                    kind: 'character',
+                    projectId,
                     description,
                     descriptionIndex: typeof descriptionIndex === 'number' ? descriptionIndex : 0,
                 }),
@@ -195,12 +200,13 @@ export function useBatchGenerateCharacterImages(projectId: string) {
         mutationFn: async (items: Array<{ characterId: string; appearanceId: string }>) => {
             const results = await Promise.allSettled(
                 items.map(item =>
-                    apiFetch(`/api/novel-promotion/${projectId}/generate-image`, {
+                    apiFetch(`/api/assets/${item.characterId}/generate`, {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json' },
                         body: JSON.stringify({
-                            type: 'character',
-                            id: item.characterId,
+                            scope: 'project',
+                            kind: 'character',
+                            projectId,
                             appearanceId: item.appearanceId
                         })
                     })

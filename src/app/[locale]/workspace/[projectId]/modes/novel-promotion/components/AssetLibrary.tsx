@@ -12,7 +12,7 @@ import { useState } from 'react'
 import { useTranslations } from 'next-intl'
 import AssetsStage from './AssetsStage'
 import { AppIcon } from '@/components/ui/icons'
-import { useProjectAssets } from '@/lib/query/hooks'
+import { useAssets } from '@/lib/query/hooks'
 import JSZip from 'jszip'
 import { logError as _logError } from '@/lib/logging/core'
 
@@ -30,35 +30,47 @@ export default function AssetLibrary({
   const t = useTranslations('assets')
 
   // 获取项目资产数据用于下载
-  const { data: assets } = useProjectAssets(projectId)
+  const { data: assets = [] } = useAssets({
+    scope: 'project',
+    projectId,
+  })
 
   const handleDownloadAll = async () => {
-    const characters = assets?.characters ?? []
-    const locations = assets?.locations ?? []
-
     // 收集所有有效图片
     const imageEntries: Array<{ filename: string; url: string }> = []
 
     // 角色图片
-    for (const character of characters) {
-      for (const appearance of character.appearances ?? []) {
-        const url = appearance.imageUrl
+    for (const asset of assets) {
+      if (asset.kind !== 'character') continue
+      for (const variant of asset.variants) {
+        const selectedRender = variant.renders.find((render) => render.isSelected) ?? variant.renders[0]
+        const url = selectedRender?.imageUrl
         if (!url) continue
-        const safeName = character.name.replace(/[/\\:*?"<>|]/g, '_')
-        const filename = appearance.appearanceIndex === 0
+        const safeName = asset.name.replace(/[/\\:*?"<>|]/g, '_')
+        const filename = variant.index === 0
           ? `characters/${safeName}.jpg`
-          : `characters/${safeName}_appearance${appearance.appearanceIndex}.jpg`
+          : `characters/${safeName}_appearance${variant.index}.jpg`
         imageEntries.push({ filename, url })
       }
     }
 
     // 场景图片：取已选中的那张
-    for (const location of locations) {
-      const selectedImage = location.images?.find(img => img.isSelected) ?? location.images?.[0]
-      const url = selectedImage?.imageUrl
+    for (const asset of assets) {
+      if (asset.kind !== 'location') continue
+      const selectedVariant = asset.variants.find((variant) => variant.renders[0]?.isSelected) ?? asset.variants[0]
+      const url = selectedVariant?.renders[0]?.imageUrl
       if (!url) continue
-      const safeName = location.name.replace(/[/\\:*?"<>|]/g, '_')
+      const safeName = asset.name.replace(/[/\\:*?"<>|]/g, '_')
       imageEntries.push({ filename: `locations/${safeName}.jpg`, url })
+    }
+
+    for (const asset of assets) {
+      if (asset.kind !== 'prop') continue
+      const selectedVariant = asset.variants.find((variant) => variant.renders[0]?.isSelected) ?? asset.variants[0]
+      const url = selectedVariant?.renders[0]?.imageUrl
+      if (!url) continue
+      const safeName = asset.name.replace(/[/\\:*?"<>|]/g, '_')
+      imageEntries.push({ filename: `props/${safeName}.jpg`, url })
     }
 
     if (imageEntries.length === 0) {

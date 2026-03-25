@@ -1,9 +1,10 @@
-import type { Character, CharacterAppearance, Location } from '@/types/project'
+import type { Character, CharacterAppearance, Location, Prop } from '@/types/project'
 import { PRIMARY_APPEARANCE_INDEX } from '@/lib/constants'
 
 interface ClipLike {
   characters: string | null
   location: string | null
+  props?: string | null
 }
 
 export function getPrimaryAppearance(char: Character): CharacterAppearance | undefined {
@@ -187,4 +188,35 @@ export function processLocationInClip(params: {
   }
 
   return newLocationNames.join(',')
+}
+
+export function processPropInClip(params: {
+  clip: ClipLike
+  action: 'add' | 'remove'
+  targetProp: Prop
+}): string | null {
+  const { clip, action, targetProp } = params
+  let currentNames: string[] = []
+  if (clip.props) {
+    try {
+      const parsed = JSON.parse(clip.props)
+      currentNames = Array.isArray(parsed)
+        ? parsed.map((item) => (typeof item === 'string' ? item.trim() : '')).filter(Boolean)
+        : []
+    } catch {
+      currentNames = clip.props.split(',').map((item) => item.trim()).filter(Boolean)
+    }
+  }
+
+  const beforeLen = currentNames.length
+  if (action === 'add') {
+    if (currentNames.some((name) => name.toLowerCase() === targetProp.name.toLowerCase())) {
+      return null
+    }
+    return JSON.stringify([...currentNames, targetProp.name])
+  }
+
+  const nextNames = currentNames.filter((name) => name.toLowerCase() !== targetProp.name.toLowerCase())
+  if (nextNames.length === beforeLen) return null
+  return nextNames.length > 0 ? JSON.stringify(nextNames) : null
 }

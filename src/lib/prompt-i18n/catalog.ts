@@ -24,11 +24,11 @@ export const PROMPT_CATALOG: Record<PromptId, PromptCatalogEntry> = {
   },
   [PROMPT_IDS.NP_AGENT_CINEMATOGRAPHER]: {
     pathStem: 'novel-promotion/agent_cinematographer',
-    variableKeys: ['panels_json', 'panel_count', 'locations_description', 'characters_info'],
+    variableKeys: ['panels_json', 'panel_count', 'locations_description', 'characters_info', 'props_description'],
   },
   [PROMPT_IDS.NP_AGENT_CLIP]: {
     pathStem: 'novel-promotion/agent_clip',
-    variableKeys: ['input', 'locations_lib_name', 'characters_lib_name', 'characters_introduction'],
+    variableKeys: ['input', 'locations_lib_name', 'characters_lib_name', 'props_lib_name', 'characters_introduction'],
   },
   [PROMPT_IDS.NP_AGENT_SHOT_VARIANT_ANALYSIS]: {
     pathStem: 'novel-promotion/agent_shot_variant_analysis',
@@ -55,7 +55,7 @@ export const PROMPT_CATALOG: Record<PromptId, PromptCatalogEntry> = {
   },
   [PROMPT_IDS.NP_AGENT_STORYBOARD_DETAIL]: {
     pathStem: 'novel-promotion/agent_storyboard_detail',
-    variableKeys: ['panels_json', 'characters_age_gender', 'locations_description'],
+    variableKeys: ['panels_json', 'characters_age_gender', 'locations_description', 'props_description'],
   },
   [PROMPT_IDS.NP_AGENT_STORYBOARD_INSERT]: {
     pathStem: 'novel-promotion/agent_storyboard_insert',
@@ -64,6 +64,7 @@ export const PROMPT_CATALOG: Record<PromptId, PromptCatalogEntry> = {
       'next_panel_json',
       'characters_full_description',
       'locations_description',
+      'props_description',
       'user_input',
     ],
   },
@@ -75,6 +76,7 @@ export const PROMPT_CATALOG: Record<PromptId, PromptCatalogEntry> = {
       'characters_introduction',
       'characters_appearance_list',
       'characters_full_description',
+      'props_description',
       'clip_json',
       'clip_content',
     ],
@@ -121,7 +123,11 @@ export const PROMPT_CATALOG: Record<PromptId, PromptCatalogEntry> = {
   },
   [PROMPT_IDS.NP_SCREENPLAY_CONVERSION]: {
     pathStem: 'novel-promotion/screenplay_conversion',
-    variableKeys: ['clip_content', 'locations_lib_name', 'characters_lib_name', 'characters_introduction', 'clip_id'],
+    variableKeys: ['clip_content', 'locations_lib_name', 'characters_lib_name', 'props_lib_name', 'characters_introduction', 'clip_id'],
+  },
+  [PROMPT_IDS.NP_SELECT_PROP]: {
+    pathStem: 'novel-promotion/select_prop',
+    variableKeys: ['input', 'props_lib_name'],
   },
   [PROMPT_IDS.NP_SELECT_LOCATION]: {
     pathStem: 'novel-promotion/select_location',

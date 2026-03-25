@@ -107,6 +107,16 @@ export interface Location {
   images: LocationImage[]           // 独立表关联
 }
 
+export type PropImage = LocationImage
+
+export interface Prop {
+  id: string
+  name: string
+  summary: string | null
+  selectedImageId?: string | null
+  images: PropImage[]
+}
+
 export interface AssetLibraryCharacter {
   id: string
   name: string
@@ -148,6 +158,7 @@ export interface NovelPromotionClip {
   summary: string
   location: string | null
   characters: string | null
+  props: string | null
   content: string
   screenplay?: string | null  // 剧本JSON（Phase 0输出）
 }
@@ -162,6 +173,7 @@ export interface NovelPromotionPanel {
   description: string | null
   location: string | null
   characters: string | null
+  props: string | null
   srtSegment: string | null
   srtStart: number | null
   srtEnd: number | null
@@ -254,6 +266,7 @@ export interface NovelPromotionProject {
   srtContent: string | null
   characters?: Character[]
   locations?: Location[]
+  props?: Prop[]
   episodes?: Array<{
     id: string
     episodeNumber: number

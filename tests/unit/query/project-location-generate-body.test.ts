@@ -4,12 +4,14 @@ import { buildProjectLocationGenerateImageBody } from '@/lib/query/mutations/loc
 describe('buildProjectLocationGenerateImageBody', () => {
   it('includes artStyle when generating a project location image', () => {
     expect(buildProjectLocationGenerateImageBody({
+      projectId: 'project-1',
       locationId: 'location-1',
       count: 1,
       artStyle: 'japanese-anime',
     })).toEqual({
-      type: 'location',
-      id: 'location-1',
+      scope: 'project',
+      kind: 'location',
+      projectId: 'project-1',
       imageIndex: undefined,
       count: 1,
       artStyle: 'japanese-anime',

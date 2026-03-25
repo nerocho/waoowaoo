@@ -1,11 +1,13 @@
 type ClipAssetSource = {
   characters?: string | null
   location?: string | null
+  props?: string | null
 }
 
 export type ParsedClipAssets = {
   charNames: Set<string>
   locNames: Set<string>
+  propNames: Set<string>
   charAppearanceSet: Set<string>
 }
 
@@ -29,6 +31,7 @@ export function fuzzyMatchLocation(clipLocName: string, libraryLocName: string):
 export function parseClipAssets(clip: ClipAssetSource): ParsedClipAssets {
   const charNames = new Set<string>()
   const locNames = new Set<string>()
+  const propNames = new Set<string>()
   const charAppearanceSet = new Set<string>()
 
   if (clip.characters) {
@@ -80,20 +83,39 @@ export function parseClipAssets(clip: ClipAssetSource): ParsedClipAssets {
     }
   }
 
-  return { charNames, locNames, charAppearanceSet }
+  if (clip.props) {
+    try {
+      const parsed = JSON.parse(clip.props)
+      if (Array.isArray(parsed)) {
+        parsed.forEach((prop) => {
+          const trimmed = typeof prop === 'string' ? prop.trim() : ''
+          if (trimmed) propNames.add(trimmed)
+        })
+      }
+    } catch {
+      clip.props.split(',').forEach((prop) => {
+        const trimmed = prop.trim()
+        if (trimmed) propNames.add(trimmed)
+      })
+    }
+  }
+
+  return { charNames, locNames, propNames, charAppearanceSet }
 }
 
 export function getAllClipsAssets(clips: ClipAssetSource[]) {
   const allCharNames = new Set<string>()
   const allLocNames = new Set<string>()
+  const allPropNames = new Set<string>()
   const allCharAppearanceSet = new Set<string>()
 
   clips.forEach((clip) => {
-    const { charNames, locNames, charAppearanceSet } = parseClipAssets(clip)
+    const { charNames, locNames, propNames, charAppearanceSet } = parseClipAssets(clip)
     charNames.forEach(n => allCharNames.add(n))
     locNames.forEach(n => allLocNames.add(n))
+    propNames.forEach(n => allPropNames.add(n))
     charAppearanceSet.forEach(k => allCharAppearanceSet.add(k))
   })
 
-  return { allCharNames, allLocNames, allCharAppearanceSet }
+  return { allCharNames, allLocNames, allPropNames, allCharAppearanceSet }
 }

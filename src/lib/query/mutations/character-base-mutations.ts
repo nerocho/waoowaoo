@@ -124,12 +124,13 @@ export function useGenerateProjectCharacterImage(projectId: string) {
             appearanceId: string
             count?: number
         }) => {
-            return await requestJsonWithError(`/api/novel-promotion/${projectId}/generate-image`, {
+            return await requestJsonWithError(`/api/assets/${characterId}/generate`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
-                    type: 'character',
-                    id: characterId,
+                    scope: 'project',
+                    kind: 'character',
+                    projectId,
                     appearanceId,
                     count,
                 })
@@ -209,13 +210,15 @@ export function useSelectProjectCharacterImage(projectId: string) {
             imageIndex: number | null
             confirm?: boolean
         }) => {
-            return await requestJsonWithError(`/api/novel-promotion/${projectId}/select-character-image`, {
+            return await requestJsonWithError(`/api/assets/${characterId}/select-render`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
-                    characterId,
+                    scope: 'project',
+                    kind: 'character',
+                    projectId,
                     appearanceId,
-                    selectedIndex: imageIndex,
+                    imageIndex,
                 })
             }, 'Failed to select image')
         },
@@ -273,12 +276,13 @@ export function useUndoProjectCharacterImage(projectId: string) {
 
     return useMutation({
         mutationFn: async ({ characterId, appearanceId }: { characterId: string; appearanceId: string }) => {
-            return await requestJsonWithError(`/api/novel-promotion/${projectId}/undo-regenerate`, {
+            return await requestJsonWithError(`/api/assets/${characterId}/revert-render`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
-                    type: 'character',
-                    id: characterId,
+                    scope: 'project',
+                    kind: 'character',
+                    projectId,
                     appearanceId
                 })
             }, 'Failed to undo image')
@@ -367,20 +371,26 @@ export function useUpdateProjectCharacterName(projectId: string) {
 
     return useMutation({
         mutationFn: async ({ characterId, name }: { characterId: string; name: string }) => {
-            const res = await requestJsonWithError(`/api/novel-promotion/${projectId}/character`, {
+            const res = await requestJsonWithError(`/api/assets/${characterId}`, {
                 method: 'PATCH',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ characterId, name })
+                body: JSON.stringify({
+                    scope: 'project',
+                    kind: 'character',
+                    projectId,
+                    name,
+                })
             }, 'Failed to update character name')
 
             // 等待图片标签更新完成，确保 onSuccess invalidate 后前端能立即看到新标签
             try {
-                await apiFetch(`/api/novel-promotion/${projectId}/update-asset-label`, {
+                await apiFetch(`/api/assets/${characterId}/update-label`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({
-                        type: 'character',
-                        id: characterId,
+                        scope: 'project',
+                        kind: 'character',
+                        projectId,
                         newName: name
                     })
                 })

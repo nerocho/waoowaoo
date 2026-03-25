@@ -123,8 +123,8 @@
       "5_4": "横屏 · Banner",
       "21_9": "超宽 · 电影感"
     },
-    "visualStyle": "视觉风格",
-    "visualStyleHint": "根据受众选择画面风格，例如：真人风格适合写实剧情，动漫风格适合二次元内容",
+    "visualStyle": "画面风格",
+    "visualStyleHint": "选择画面风格，不同风格适合不同类型的作品",
     "currentConfigSummary": "当前配置：{ratio} · {style}，后续生成都会使用此组合",
     "assetLibraryRatioNote": "资产库比例不受影响",
     "moreConfig": "更多配置请点击右上角「 配置」按钮",
@@ -134,7 +134,16 @@
     },
     "creating": "AI 创作中...",
     "ready": "✓ 配置完成，可以进入下一步",
-    "pleaseInput": "请先输入剧本内容"
+    "pleaseInput": "请先输入剧本内容",
+    "longTextDetection": {
+      "title": "🚀 建议使用智能分集",
+      "description": "检测到文本约 {count} 字，长文本直接作为单集处理可能导致生成效果不佳。",
+      "strongRecommend": "强烈建议使用智能分集，AI 将自动识别章节结构，拆分为多集并行处理，显著提升生成质量和效率。",
+      "continueAnyway": "仍然单集创作",
+      "smartSplit": "智能分集",
+      "smartSplitRecommend": "推荐",
+      "singleEpisodeWarning": "单集模式下，所有内容将作为一集处理"
+    }
   },
   "execution": {
     "selectEpisode": "请先选择剧集",

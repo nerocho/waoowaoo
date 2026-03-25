@@ -3,6 +3,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { TASK_TYPE, type TaskJobData } from '@/lib/task/types'
 
 const prismaMock = vi.hoisted(() => ({
+  $transaction: vi.fn(),
   novelPromotionCharacter: {
     findFirst: vi.fn(),
     findMany: vi.fn(),
@@ -10,6 +11,7 @@ const prismaMock = vi.hoisted(() => ({
   },
   characterAppearance: {
     create: vi.fn(async () => ({})),
+    deleteMany: vi.fn(async () => ({ count: 1 })),
   },
 }))
 
@@ -89,6 +91,9 @@ function buildJob(type: TaskJobData['type'], payload: Record<string, unknown>): 
 describe('worker character-profile behavior', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    prismaMock.$transaction.mockImplementation(async (callback: (tx: typeof prismaMock) => Promise<unknown>) => {
+      return await callback(prismaMock)
+    })
 
     llmMock.getCompletionContent.mockReturnValue(
       JSON.stringify({
@@ -134,10 +139,13 @@ describe('worker character-profile behavior', () => {
     await expect(handleCharacterProfileTask(job)).rejects.toThrow('Unsupported character profile task type')
   })
 
-  it('confirm profile success -> creates appearance and marks profileConfirmed', async () => {
+  it('confirm profile success -> rebuilds appearances and marks profileConfirmed', async () => {
     const job = buildJob(TASK_TYPE.CHARACTER_PROFILE_CONFIRM, { characterId: 'character-1' })
     const result = await handleCharacterProfileTask(job)
 
+    expect(prismaMock.characterAppearance.deleteMany).toHaveBeenCalledWith({
+      where: { characterId: 'character-1' },
+    })
     expect(prismaMock.characterAppearance.create).toHaveBeenCalledWith({
       data: expect.objectContaining({
         characterId: 'character-1',
@@ -149,7 +157,10 @@ describe('worker character-profile behavior', () => {
 
     expect(prismaMock.novelPromotionCharacter.update).toHaveBeenCalledWith({
       where: { id: 'character-1' },
-      data: { profileConfirmed: true },
+      data: {
+        profileData: JSON.stringify({ archetype: 'lead' }),
+        profileConfirmed: true,
+      },
     })
 
     expect(result).toEqual(expect.objectContaining({
@@ -170,5 +181,19 @@ describe('worker character-profile behavior', () => {
       count: 2,
     })
     expect(prismaMock.characterAppearance.create).toHaveBeenCalledTimes(2)
+  })
+
+  it('reconfirm with existing appearances -> replaces old rows instead of colliding on unique index', async () => {
+    const job = buildJob(TASK_TYPE.CHARACTER_PROFILE_CONFIRM, { characterId: 'character-1' })
+
+    await expect(handleCharacterProfileTask(job)).resolves.toEqual(expect.objectContaining({
+      success: true,
+    }))
+
+    expect(prismaMock.$transaction).toHaveBeenCalledTimes(1)
+    expect(prismaMock.characterAppearance.deleteMany).toHaveBeenCalledWith({
+      where: { characterId: 'character-1' },
+    })
+    expect(prismaMock.characterAppearance.create).toHaveBeenCalledTimes(1)
   })
 })

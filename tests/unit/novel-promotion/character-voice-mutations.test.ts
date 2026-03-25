@@ -57,12 +57,14 @@ describe('project character voice mutations', () => {
 
     expect(requestJsonWithErrorMock).toHaveBeenCalledTimes(1)
     expect(requestJsonWithErrorMock).toHaveBeenCalledWith(
-      '/api/novel-promotion/project-1/character-voice',
+      '/api/assets/character-1',
       {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          characterId: 'character-1',
+          scope: 'project',
+          kind: 'character',
+          projectId: 'project-1',
           voiceType: 'qwen-designed',
           voiceId: 'voice-1',
           customVoiceUrl: 'https://example.com/audio.wav',

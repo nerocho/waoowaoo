@@ -136,6 +136,7 @@
 
 .glass-btn-primary {
   background: linear-gradient(140deg, var(--glass-accent-from) 0%, var(--glass-accent-to) 100%);
+  border: none;
   color: var(--glass-text-on-accent);
   box-shadow: 0 8px 20px var(--glass-accent-shadow-soft);
 }
